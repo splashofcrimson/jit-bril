@@ -12,6 +12,13 @@ use std::{env, mem, process};
 
 mod program;
 
+// macro_rules! binop {
+//     ($op:instruction) => {{
+//         dynasm!(asm
+//             ; mov rax)
+//     }}
+// }
+
 struct AsmProgram {
     code: dynasmrt::ExecutableBuffer,
     start: dynasmrt::AssemblyOffset,
@@ -49,8 +56,8 @@ impl AsmProgram {
         );
 
         for inst in &bril_func.instrs {
-            match inst.op.as_ref() {
-                "add" => {
+            match &inst.op {
+                program::OpCode::BinOp(op) => {
                     if let (Some(args), Some(dest)) = (&inst.args, &inst.dest) {
                         if let (Some(a), Some(b), Some(d)) = (
                             var_offsets.get(&args[0]),
@@ -65,7 +72,7 @@ impl AsmProgram {
                         }
                     }
                 }
-                "const" => {
+                program::OpCode::Const => {
                     if let (Some(dest), Some(value)) = (&inst.dest, &inst.value) {
                         match inst.value.as_ref().unwrap_or(&InstrType::VInt(0)) {
                             InstrType::VInt(value) => {
@@ -80,7 +87,7 @@ impl AsmProgram {
                         }
                     }
                 }
-                "print" => {
+                program::OpCode::Print => {
                     if let Some(args) = &inst.args {
                         for arg in args {
                             if let Some(a) = var_offsets.get(arg) {
@@ -93,7 +100,7 @@ impl AsmProgram {
                         }
                     }
                 }
-                "nop" => {
+                program::OpCode::Nop => {
                     dynasm!(asm ; nop);
                 }
                 _ => {}
