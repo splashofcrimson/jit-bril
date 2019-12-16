@@ -1,4 +1,4 @@
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 
 use std::error::Error;
 use std::fs::File;
@@ -8,7 +8,7 @@ use std::io::BufReader;
 #[serde(untagged)]
 pub enum InstrType {
   VInt(i32),
-  VBool(bool)
+  VBool(bool),
 }
 
 #[derive(Deserialize, Debug, Serialize)]
@@ -32,7 +32,7 @@ pub struct Instruction {
   #[serde(skip_serializing_if = "Option::is_none")]
   pub value: Option<InstrType>,
   #[serde(skip_serializing_if = "Option::is_none")]
-  pub r#type: Option<String>
+  pub r#type: Option<String>,
 }
 
 // impl Program {

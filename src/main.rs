@@ -1,14 +1,14 @@
 #![feature(proc_macro_hygiene)]
 
-extern crate dynasmrt;
 extern crate dynasm;
+extern crate dynasmrt;
 
 use dynasm::dynasm;
 use dynasmrt::{DynasmApi, DynasmLabelApi};
 use program::*;
 
-use std::{env, mem, process};
 use std::collections::HashMap;
+use std::{env, mem, process};
 
 mod program;
 
@@ -19,7 +19,6 @@ struct AsmProgram {
 
 impl AsmProgram {
     fn compile(bril_func: &program::Function) -> AsmProgram {
-
         let mut var_offsets = HashMap::<String, i32>::new();
         let mut num_vars = 1;
 
@@ -53,7 +52,11 @@ impl AsmProgram {
             match inst.op.as_ref() {
                 "add" => {
                     if let (Some(args), Some(dest)) = (&inst.args, &inst.dest) {
-                        if let (Some(a), Some(b), Some(d)) = (var_offsets.get(&args[0]), var_offsets.get(&args[1]), var_offsets.get(dest)) {
+                        if let (Some(a), Some(b), Some(d)) = (
+                            var_offsets.get(&args[0]),
+                            var_offsets.get(&args[1]),
+                            var_offsets.get(dest),
+                        ) {
                             dynasm!(asm
                                 ; mov rax, [rbp + *a]
                                 ; add rax, [rbp + *b]
@@ -65,14 +68,15 @@ impl AsmProgram {
                 "const" => {
                     if let (Some(dest), Some(value)) = (&inst.dest, &inst.value) {
                         match inst.value.as_ref().unwrap_or(&InstrType::VInt(0)) {
-                            InstrType::VInt(value) =>
+                            InstrType::VInt(value) => {
                                 if let Some(d) = var_offsets.get(dest) {
                                     dynasm!(asm
                                         ; mov rax, *value
                                         ; mov [rbp + *d], rax
                                     );
                                 }
-                            InstrType::VBool(value) => panic!("shit")
+                            }
+                            InstrType::VBool(value) => panic!("shit"),
                         }
                     }
                 }
@@ -89,8 +93,10 @@ impl AsmProgram {
                         }
                     }
                 }
-                "nop" => { dynasm!(asm ; nop); }
-                _ => { }
+                "nop" => {
+                    dynasm!(asm ; nop);
+                }
+                _ => {}
             }
         }
 
@@ -102,13 +108,14 @@ impl AsmProgram {
         );
 
         let code = asm.finalize().unwrap();
-        return AsmProgram {code: code, start: start};
+        return AsmProgram {
+            code: code,
+            start: start,
+        };
     }
 
     fn run(self) -> bool {
-        let f: extern "stdcall" fn() -> bool = unsafe {
-            mem::transmute(self.code.ptr(self.start))
-        };
+        let f: extern "stdcall" fn() -> bool = unsafe { mem::transmute(self.code.ptr(self.start)) };
         return f();
     }
 }
@@ -134,4 +141,3 @@ fn main() {
 fn print_int(i: i64) {
     println!("{}", i);
 }
-
