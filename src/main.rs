@@ -1,69 +1,131 @@
-extern crate libc;
+#![feature(proc_macro_hygiene)]
 
-use std::mem;
-use std::ops::{Index, IndexMut};
+extern crate dynasmrt;
+extern crate dynasm;
+
+use dynasm::dynasm;
+use dynasmrt::{DynasmApi, DynasmLabelApi};
+
+use std::{env, mem, process};
+use std::collections::HashMap;
 
 mod program;
 
-extern {
-  fn memset(s: *mut libc::c_void, c: libc::uint32_t, n: libc::size_t) -> *mut libc::c_void;
+struct AsmProgram {
+    code: dynasmrt::ExecutableBuffer,
+    start: dynasmrt::AssemblyOffset,
 }
 
-const PAGE_SIZE: usize = 4096;
+impl AsmProgram {
+    fn compile(bril_func: &program::Function) -> AsmProgram {
 
-struct JitMemory {
-  contents: *mut u8
-}
+        let mut var_offsets = HashMap::<String, i32>::new();
+        let mut num_vars = 1;
 
-impl JitMemory {
-  fn new(num_pages: usize) -> JitMemory {
-    let contents: *mut u8;
-    unsafe {
-      let size = num_pages * PAGE_SIZE;
-      let mut _contents : *mut libc::c_void = mem::uninitialized();
-      libc::posix_memalign(&mut _contents, PAGE_SIZE, size);
-      libc::mprotect(_contents, size, libc::PROT_EXEC | libc::PROT_READ | libc::PROT_WRITE);
+        for inst in &bril_func.instrs {
+            if let Some(dest) = &inst.dest {
+                if !var_offsets.contains_key(dest) {
+                    var_offsets.insert(dest.to_string(), -8 * num_vars);
+                    num_vars += 1;
+                }
+            }
+        }
 
-      memset(_contents, 0xc3, size);
+        let num_bytes = if num_vars % 2 == 0 {
+            8 * num_vars
+        } else {
+            16 * (num_vars / 2 + 1)
+        };
 
-      contents = mem::transmute(_contents);
+        let mut asm = dynasmrt::x64::Assembler::new().unwrap();
+
+        let start = asm.offset();
+
+        dynasm!(asm
+            // prologue
+            ; push rbp
+            ; mov rbp, rsp
+            ; sub rsp, num_bytes
+        );
+
+        for inst in &bril_func.instrs {
+            match inst.op.as_ref() {
+                "add" => {
+                    if let (Some(args), Some(dest)) = (&inst.args, &inst.dest) {
+                        if let (Some(a), Some(b), Some(d)) = (var_offsets.get(&args[0]), var_offsets.get(&args[1]), var_offsets.get(dest)) {
+                            dynasm!(asm
+                                ; mov rax, [rbp + *a]
+                                ; add rax, [rbp + *b]
+                                ; mov [rbp + *d], rax
+                            );
+                        }
+                    }
+                }
+                "const" => {
+                    if let (Some(dest), Some(value)) = (&inst.dest, &inst.value) {
+                        if let Some(d) = var_offsets.get(dest) {
+                            dynasm!(asm
+                                ; mov rax, *value
+                                ; mov [rbp + *d], rax
+                            );
+                        }
+                    }
+                }
+                "print" => {
+                    if let Some(args) = &inst.args {
+                        for arg in args {
+                            if let Some(a) = var_offsets.get(arg) {
+                                dynasm!(asm
+                                    ; mov rdi, [rbp + *a]
+                                    ; mov rax, QWORD print_int as _
+                                    ; call rax
+                                );
+                            }
+                        }
+                    }
+                }
+                "nop" => { dynasm!(asm ; nop); }
+                _ => { }
+            }
+        }
+
+        // epilogue
+        dynasm!(asm
+            ; mov rsp, rbp
+            ; pop rbp
+            ; ret
+        );
+
+        let code = asm.finalize().unwrap();
+        return AsmProgram {code: code, start: start};
     }
 
-    JitMemory { contents: contents }
-  }
-}
-
-impl Index<usize> for JitMemory {
-  type Output = u8;
-
-  fn index(&self, _index: usize) -> &u8 {
-    unsafe {&*self.contents.offset(_index as isize) }
-  }
-}
-
-impl IndexMut<usize> for JitMemory {
-  fn index_mut(&mut self, _index: usize) -> &mut u8 {
-    unsafe {&mut *self.contents.offset(_index as isize) }
-  }
-}
-
-fn run_jit() -> (fn() -> i64) {
-  let mut jit : JitMemory = JitMemory::new(1);
-
-  jit[0] = 0x48;
-  jit[1] = 0xc7;
-  jit[2] = 0xc0;
-  jit[3] = 0x05;
-  jit[4] = 0;
-  jit[5] = 0;
-  jit[6] = 0;
-
-  unsafe { mem::transmute(jit.contents) }
+    fn run(self) -> bool {
+        let f: extern "stdcall" fn() -> bool = unsafe {
+            mem::transmute(self.code.ptr(self.start))
+        };
+        return f();
+    }
 }
 
 fn main() {
-  let prog_json = program::read_json().unwrap();
-  println!("{:?}", prog_json);
-  let fun = run_jit();
-  println!("{}", fun());
+    let args: Vec<String> = env::args().collect();
+    if args.len() != 2 {
+        eprintln!("expected one argument");
+        process::exit(1);
+    }
+    let bril_program = match program::read_json(&args[1]) {
+        Ok(p) => p,
+        Err(_) => {
+            eprintln!("couldn't parse Bril file");
+            process::exit(1);
+        }
+    };
+    let asm_program = AsmProgram::compile(&bril_program.functions[0]);
+    println!("{}", asm_program.run());
 }
+
+fn print_int(i: i64) {
+    println!("{}", i);
+}
+

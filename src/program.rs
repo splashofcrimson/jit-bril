@@ -24,12 +24,12 @@ pub struct Function {
 #[derive(Clone, Deserialize, Debug, Serialize)]
 pub struct Instruction {
   #[serde(skip_serializing_if = "Option::is_none")]
-  args: Option<Vec<String>>,
+  pub args: Option<Vec<String>>,
   #[serde(skip_serializing_if = "Option::is_none")]
   pub dest: Option<String>,
   pub op: String,
   #[serde(skip_serializing_if = "Option::is_none")]
-  value: Option<i32>,
+  pub value: Option<i32>,
   #[serde(skip_serializing_if = "Option::is_none")]
   pub r#type: Option<String>
 }
@@ -98,8 +98,8 @@ impl Instruction {
 
 }
 
-pub fn read_json() -> Result<Program, Box<Error>>{
-  let prog_file = File::open("./tests/CSE_comm.json")?;
+pub fn read_json(file_name: &str) -> Result<Program, Box<dyn Error>> {
+  let prog_file = File::open(file_name)?;
   let prog_reader = BufReader::new(prog_file);
   let prog_json = serde_json::from_reader(prog_reader)?;
 
