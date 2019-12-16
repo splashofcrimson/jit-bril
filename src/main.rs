@@ -5,6 +5,7 @@ extern crate dynasm;
 
 use dynasm::dynasm;
 use dynasmrt::{DynasmApi, DynasmLabelApi};
+use program::*;
 
 use std::{env, mem, process};
 use std::collections::HashMap;
@@ -63,11 +64,15 @@ impl AsmProgram {
                 }
                 "const" => {
                     if let (Some(dest), Some(value)) = (&inst.dest, &inst.value) {
-                        if let Some(d) = var_offsets.get(dest) {
-                            dynasm!(asm
-                                ; mov rax, *value
-                                ; mov [rbp + *d], rax
-                            );
+                        match inst.value.as_ref().unwrap_or(&InstrType::VInt(0)) {
+                            InstrType::VInt(value) =>
+                                if let Some(d) = var_offsets.get(dest) {
+                                    dynasm!(asm
+                                        ; mov rax, *value
+                                        ; mov [rbp + *d], rax
+                                    );
+                                }
+                            InstrType::VBool(value) => panic!("shit")
                         }
                     }
                 }
@@ -116,7 +121,8 @@ fn main() {
     }
     let bril_program = match program::read_json(&args[1]) {
         Ok(p) => p,
-        Err(_) => {
+        Err(e) => {
+            eprintln!("{}", e);
             eprintln!("couldn't parse Bril file");
             process::exit(1);
         }
