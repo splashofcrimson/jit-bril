@@ -32,24 +32,21 @@ impl AsmProgram {
         for inst in &bril_func.instrs {
             if let Some(dest) = &inst.dest {
                 if !var_offsets.contains_key(dest) {
-                    var_offsets.insert(dest.to_string(), -8 * num_vars);
+                    var_offsets.insert(dest.to_string(), 8 * num_vars);
                     num_vars += 1;
                 }
             }
         }
 
-        let num_bytes = if num_vars % 2 == 0 {
-            8 * num_vars
-        } else {
-            16 * (num_vars / 2 + 1)
-        };
+        // 8 * #variables, rounded up to a multiple of 16
+        let num_bytes = 16 * (num_vars / 2);
 
         let mut asm = dynasmrt::x64::Assembler::new().unwrap();
 
         let start = asm.offset();
 
+        // prologue
         dynasm!(asm
-            // prologue
             ; push rbp
             ; mov rbp, rsp
             ; sub rsp, num_bytes
@@ -59,27 +56,31 @@ impl AsmProgram {
             match &inst.op {
                 program::OpCode::BinOp(op) => {
                     if let (Some(args), Some(dest)) = (&inst.args, &inst.dest) {
-                        if let (Some(a), Some(b), Some(d)) = (
+                        if let (Some(&a), Some(&b), Some(&d)) = (
                             var_offsets.get(&args[0]),
                             var_offsets.get(&args[1]),
                             var_offsets.get(dest),
                         ) {
-                            dynasm!(asm
-                                ; mov rax, [rbp + *a]
-                                ; add rax, [rbp + *b]
-                                ; mov [rbp + *d], rax
-                            );
+                            dynasm!(asm ; mov rax, [rbp - a]);
+                            match op.as_ref() {
+                                "add" => { dynasm!(asm ; add rax, [rbp - b]); }
+                                "sub" => { dynasm!(asm ; sub rax, [rbp - b]); }
+                                "mul" => { dynasm!(asm ; imul rax, [rbp - b]); }
+                                "div" => { dynasm!(asm ; cqo ; idiv QWORD [rbp - b]); }
+                                _ => { }
+                            }
+                            dynasm!(asm ; mov [rbp - d], rax);
                         }
                     }
                 }
                 program::OpCode::Const => {
-                    if let (Some(dest), Some(value)) = (&inst.dest, &inst.value) {
+                    if let Some(dest) = &inst.dest {
                         match inst.value.as_ref().unwrap_or(&InstrType::VInt(0)) {
                             InstrType::VInt(value) => {
-                                if let Some(d) = var_offsets.get(dest) {
+                                if let Some(&d) = var_offsets.get(dest) {
                                     dynasm!(asm
                                         ; mov rax, *value
-                                        ; mov [rbp + *d], rax
+                                        ; mov [rbp - d], rax
                                     );
                                 }
                             }
@@ -90,9 +91,9 @@ impl AsmProgram {
                 program::OpCode::Print => {
                     if let Some(args) = &inst.args {
                         for arg in args {
-                            if let Some(a) = var_offsets.get(arg) {
+                            if let Some(&a) = var_offsets.get(arg) {
                                 dynasm!(asm
-                                    ; mov rdi, [rbp + *a]
+                                    ; mov rdi, [rbp - a]
                                     ; mov rax, QWORD print_int as _
                                     ; call rax
                                 );
@@ -103,7 +104,6 @@ impl AsmProgram {
                 program::OpCode::Nop => {
                     dynasm!(asm ; nop);
                 }
-                _ => {}
             }
         }
 
