@@ -89,7 +89,7 @@ impl AsmProgram {
                                     );
                                 }
                             }
-                            InstrType::VBool(value) => panic!("shit"),
+                            InstrType::VBool(value) => panic!("Expected bool"),
                         }
                     }
                 }
@@ -135,14 +135,14 @@ impl AsmProgram {
 fn main() {
     let args: Vec<String> = env::args().collect();
     if args.len() != 2 {
-        eprintln!("expected one argument");
+        eprintln!("Expected one argument");
         process::exit(1);
     }
     let bril_program = match program::read_json(&args[1]) {
         Ok(p) => p,
         Err(e) => {
             eprintln!("{}", e);
-            eprintln!("couldn't parse Bril file");
+            eprintln!("Couldn't parse Bril file");
             process::exit(1);
         }
     };
