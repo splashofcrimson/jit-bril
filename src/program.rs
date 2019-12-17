@@ -48,7 +48,7 @@ impl From<String> for OpCode {
   fn from(op: String) -> Self {
     match op.as_ref() {
       "nop" => OpCode::Nop,
-      "add" | "mul" | "sub" | "div" => OpCode::BinOp(op),
+      "add" | "mul" | "sub" | "div" | "eq" | "lt" | "gt" | "le" | "ge" => OpCode::BinOp(op),
       "const" => OpCode::Const,
       "print" => OpCode::Print,
       _ => OpCode::Nop

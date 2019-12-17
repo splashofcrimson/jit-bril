@@ -67,6 +67,11 @@ impl AsmProgram {
                                 "sub" => { dynasm!(asm ; sub rax, [rbp - b]); }
                                 "mul" => { dynasm!(asm ; imul rax, [rbp - b]); }
                                 "div" => { dynasm!(asm ; cqo ; idiv QWORD [rbp - b]); }
+                                "eq" => { dynasm!(asm ; cmp rax, [rbp - b] ; sete al ; movzx rax, al); }
+                                "lt" => { dynasm!(asm ; cmp rax, [rbp - b] ; setl al ; movzx rax, al); }
+                                "gt" => { dynasm!(asm ; cmp rax, [rbp - b] ; setg al ; movzx rax, al); }
+                                "le" => { dynasm!(asm ; cmp rax, [rbp - b] ; setle al ; movzx rax, al); }
+                                "ge" => { dynasm!(asm ; cmp rax, [rbp - b] ; setge al ; movzx rax, al); }
                                 _ => { }
                             }
                             dynasm!(asm ; mov [rbp - d], rax);
@@ -142,7 +147,8 @@ fn main() {
         }
     };
     let asm_program = AsmProgram::compile(&bril_program.functions[0]);
-    println!("{}", asm_program.run());
+    asm_program.run();
+    // println!("{}", asm_program.run());
 }
 
 fn print_int(i: i64) {
