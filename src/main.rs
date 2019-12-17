@@ -12,13 +12,6 @@ use std::{env, mem, process};
 
 mod program;
 
-// macro_rules! binop {
-//     ($op:instruction) => {{
-//         dynasm!(asm
-//             ; mov rax)
-//     }}
-// }
-
 struct AsmProgram {
     code: dynasmrt::ExecutableBuffer,
     start: dynasmrt::AssemblyOffset,
