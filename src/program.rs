@@ -15,9 +15,11 @@ pub enum InstrType {
 #[serde(from = "String")]
 pub enum OpCode {
     BinOp(String),
+    BinOpBool(String),
     Const,
     Nop,
     Print,
+    UnOpBool(String),
 }
 
 #[derive(Deserialize, Debug, Serialize)]
@@ -49,6 +51,8 @@ impl From<String> for OpCode {
     match op.as_ref() {
       "nop" => OpCode::Nop,
       "add" | "mul" | "sub" | "div" | "eq" | "lt" | "gt" | "le" | "ge" => OpCode::BinOp(op),
+      "and" | "or" => OpCode::BinOpBool(op),
+      "not" => OpCode::UnOpBool(op),
       "const" => OpCode::Const,
       "print" => OpCode::Print,
       _ => OpCode::Nop

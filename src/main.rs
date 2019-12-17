@@ -27,6 +27,7 @@ struct AsmProgram {
 impl AsmProgram {
     fn compile(bril_func: &program::Function) -> AsmProgram {
         let mut var_offsets = HashMap::<String, i32>::new();
+        let mut var_types = HashMap::<String, String>::new();
         let mut num_vars = 1;
 
         for inst in &bril_func.instrs {
@@ -34,6 +35,11 @@ impl AsmProgram {
                 if !var_offsets.contains_key(dest) {
                     var_offsets.insert(dest.to_string(), 8 * num_vars);
                     num_vars += 1;
+                }
+                if !var_types.contains_key(dest) {
+                    if let Some(inst_type) = &inst.r#type {
+                        var_types.insert(dest.to_string(), inst_type.to_string());
+                    }
                 }
             }
         }
@@ -78,6 +84,38 @@ impl AsmProgram {
                         }
                     }
                 }
+                program::OpCode::BinOpBool(op) => {
+                    if let (Some(args), Some(dest)) = (&inst.args, &inst.dest) {
+                        if let (Some(&a), Some(&b), Some(&d)) = (
+                            var_offsets.get(&args[0]),
+                            var_offsets.get(&args[1]),
+                            var_offsets.get(dest),
+                         ) {
+                            dynasm!(asm ; mov rax, [rbp - a]);
+                            match op.as_ref() {
+                                "and" => { dynasm!(asm ; and rax, [rbp - b]); }
+                                "or" => { dynasm!(asm ; or rax, [rbp - b]); }
+                                _ => { }
+                            }
+                            dynasm!(asm ; mov [rbp - d], rax);
+                        }
+                    }
+                }
+                program::OpCode::UnOpBool(op) => {
+                    if let (Some(args), Some(dest)) = (&inst.args, &inst.dest) {
+                        if let (Some(&a), Some(&d)) = (
+                            var_offsets.get(&args[0]),
+                            var_offsets.get(dest),
+                        ) {
+                            dynasm!(asm ; mov rax, [rbp - a]);
+                            match op.as_ref() {
+                                "not" => { dynasm!(asm ; xor rax, 1); }
+                                _ => { }
+                            }
+                            dynasm!(asm ; mov [rbp - d], rax);
+                        }
+                    }
+                }
                 program::OpCode::Const => {
                     if let Some(dest) = &inst.dest {
                         match inst.value.as_ref().unwrap_or(&InstrType::VInt(0)) {
@@ -89,7 +127,15 @@ impl AsmProgram {
                                     );
                                 }
                             }
-                            InstrType::VBool(value) => panic!("shit"),
+                            InstrType::VBool(value) => {
+                                let value_int = *value as i32;
+                                if let Some(&d) = var_offsets.get(dest) {
+                                    dynasm!(asm
+                                        ; mov rax, value_int
+                                        ; mov [rbp - d], rax
+                                    );
+                                }
+                            },
                         }
                     }
                 }
@@ -97,11 +143,15 @@ impl AsmProgram {
                     if let Some(args) = &inst.args {
                         for arg in args {
                             if let Some(&a) = var_offsets.get(arg) {
-                                dynasm!(asm
-                                    ; mov rdi, [rbp - a]
-                                    ; mov rax, QWORD print_int as _
-                                    ; call rax
-                                );
+                                dynasm!(asm ; mov rdi, [rbp - a]);
+                                if let Some(&inst_type) = var_types.get(arg).as_ref() {
+                                    match inst_type.as_ref() {
+                                        "int" => { dynasm!(asm ; mov rax, QWORD print_int as _); }
+                                        "bool" => { dynasm!(asm ; mov rax, QWORD print_bool as _); }
+                                        _ => { }
+                                    }
+                                }
+                                dynasm!(asm ; call rax);
                             }
                         }
                     }
@@ -152,5 +202,9 @@ fn main() {
 }
 
 fn print_int(i: i64) {
-    println!("{}", i);
+    print!("{} ", i);
+}
+
+fn print_bool(i: i64) {
+    print!("{} ", i != 0);
 }
