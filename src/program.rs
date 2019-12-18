@@ -20,6 +20,10 @@ pub enum OpCode {
     Const,
     Nop,
     Print,
+    Jmp,
+    Br,
+    Ret,
+    Id,
     UnOpBool(String),
 }
 
@@ -37,10 +41,13 @@ pub struct Function {
 #[derive(Clone, Deserialize, Debug, Serialize)]
 pub struct Instruction {
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub label: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub args: Option<Vec<String>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub dest: Option<String>,
-    pub op: OpCode,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub op: Option<OpCode>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub value: Option<InstrType>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -55,9 +62,13 @@ impl From<String> for OpCode {
       "and" | "or" => OpCode::BinOpBool(op),
       "not" => OpCode::UnOpBool(op),
       "const" => OpCode::Const,
+      "jmp" => OpCode::Jmp,
+      "br" => OpCode::Br,
+      "ret" => OpCode::Ret,
+      "id" => OpCode::Id,
       "print" => OpCode::Print,
       "call" => OpCode::Call,
-      _ => OpCode::Nop
+      _ => panic!("Unknown instruction")
     }
   }
 }

@@ -4,7 +4,7 @@ extern crate dynasm;
 extern crate dynasmrt;
 
 use dynasm::dynasm;
-use dynasmrt::{DynasmApi};
+use dynasmrt::{DynasmApi, DynasmLabelApi};
 use program::*;
 
 use std::collections::HashMap;
@@ -64,6 +64,7 @@ impl BrilProgram {
     pub fn compile(&mut self, bril_func: &program::Function) -> AsmProgram {
         let mut var_offsets = HashMap::<String, i32>::new();
         let mut var_types = HashMap::<String, String>::new();
+        let mut labels = HashMap::<String, dynasmrt::DynamicLabel>::new();
         let mut num_vars = 1;
 
         for inst in &bril_func.instrs {
@@ -94,7 +95,7 @@ impl BrilProgram {
 
         for inst in &bril_func.instrs {
             match &inst.op {
-                program::OpCode::BinOp(op) => {
+                Some(program::OpCode::BinOp(op)) => {
                     if let (Some(args), Some(dest)) = (&inst.args, &inst.dest) {
                         if let (Some(&a), Some(&b), Some(&d)) = (
                             var_offsets.get(&args[0]),
@@ -118,7 +119,7 @@ impl BrilProgram {
                         }
                     }
                 }
-                program::OpCode::BinOpBool(op) => {
+                Some(program::OpCode::BinOpBool(op)) => {
                     if let (Some(args), Some(dest)) = (&inst.args, &inst.dest) {
                         if let (Some(&a), Some(&b), Some(&d)) = (
                             var_offsets.get(&args[0]),
@@ -135,7 +136,7 @@ impl BrilProgram {
                         }
                     }
                 }
-                program::OpCode::UnOpBool(op) => {
+                Some(program::OpCode::UnOpBool(op)) => {
                     if let (Some(args), Some(dest)) = (&inst.args, &inst.dest) {
                         if let (Some(&a), Some(&d)) = (
                             var_offsets.get(&args[0]),
@@ -150,7 +151,7 @@ impl BrilProgram {
                         }
                     }
                 }
-                program::OpCode::Const => {
+                Some(program::OpCode::Const) => {
                     if let Some(dest) = &inst.dest {
                         match inst.value.as_ref().unwrap_or(&InstrType::VInt(0)) {
                             InstrType::VInt(value) => {
@@ -173,7 +174,7 @@ impl BrilProgram {
                         }
                     }
                 }
-                program::OpCode::Call => {
+                Some(program::OpCode::Call) => {
                     dynasm!(self.asm ; nop);
                 }
                 // program::OpCode::Call => {
@@ -189,7 +190,7 @@ impl BrilProgram {
                 //         );
                 //     }
                 // }
-                program::OpCode::Print => {
+                Some(program::OpCode::Print) => {
                     if let Some(args) = &inst.args {
                         for arg in args {
                             if let Some(&a) = var_offsets.get(arg) {
@@ -204,10 +205,59 @@ impl BrilProgram {
                                 dynasm!(self.asm ; call rax);
                             }
                         }
+                        dynasm!(self.asm
+                            ; mov rax, QWORD print_newline as _
+                            ; call rax
+                        );
                     }
                 }
-                program::OpCode::Nop => {
+                Some(program::OpCode::Nop) => {
                     dynasm!(self.asm ; nop);
+                }
+                Some(program::OpCode::Jmp) => {
+                    if let Some(args) = &inst.args {
+                        let dyn_label = get_dyn_label(&mut self.asm, &mut labels, &args[0]);
+                        dynasm!(self.asm ; jmp =>dyn_label);
+                    }
+                }
+                Some(program::OpCode::Br) => {
+                    if let Some(args) = &inst.args {
+                        if let Some(&b) = var_offsets.get(&args[0]) {
+                            let dyn_label_true = get_dyn_label(&mut self.asm, &mut labels, &args[1]);
+                            let dyn_label_false = get_dyn_label(&mut self.asm, &mut labels, &args[2]);
+                            dynasm!(self.asm
+                                ; test [rbp - b], 1
+                                ; jne =>dyn_label_true
+                                ; jmp =>dyn_label_false
+                            );
+                        }
+                    }
+
+                }
+                Some(program::OpCode::Ret) => {
+                    // epilogue
+                    dynasm!(self.asm
+                        ; mov rsp, rbp
+                        ; pop rbp
+                        ; ret
+                    );
+                }
+                Some(program::OpCode::Id) => {
+                    if let (Some(args), Some(dest)) = (&inst.args, &inst.dest) {
+                        if let (Some(&a), Some(&d)) = (
+                            var_offsets.get(&args[0]),
+                            var_offsets.get(dest),
+                        ) {
+                            dynasm!(self.asm ; mov rax, [rbp - a]);
+                            dynasm!(self.asm ; mov [rbp - d], rax);
+                        }
+                    }
+                }
+                None => {
+                    if let Some(label) = &inst.label {
+                        let dyn_label = get_dyn_label(&mut self.asm, &mut labels, label);
+                        dynasm!(self.asm ; =>dyn_label);
+                    }
                 }
             }
         }
@@ -251,8 +301,22 @@ fn print_int(i: i64) {
     print!("{} ", i);
 }
 
-fn print_bool(i: i64) {
-    print!("{} ", i != 0);
+fn print_bool(b: bool) {
+    print!("{} ", b);
+}
+
+fn print_newline() {
+    println!()
+}
+fn get_dyn_label(asm: &mut dynasmrt::x64::Assembler, labels: &mut HashMap::<String, dynasmrt::DynamicLabel>, label: &str) ->
+        dynasmrt::DynamicLabel {
+    if let Some(&dyn_label) = labels.get(label) {
+        return dyn_label;
+    } else {
+        let dyn_label = asm.new_dynamic_label();
+        labels.insert(label.to_string(), dyn_label);
+        return dyn_label;
+    }
 }
 
 // fn call_func(program: &program, name: String) {
