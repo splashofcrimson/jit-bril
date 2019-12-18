@@ -46,6 +46,13 @@ impl BrilProgram {
         return f();
     }
 
+    fn call_func(&mut self, func_name: &str) {
+        let func = self.find_func(&func_name).unwrap();
+        let func_asm = self.compile(&func);
+        let f: extern "stdcall" fn() -> bool = unsafe { mem::transmute(func_asm.code.ptr(func_asm.start)) };
+        f();
+    }
+    
     fn find_func(&mut self, func_name: &str) -> Option<program::Function> {
         for func in self.bril_ir.functions.clone() {
             if func.name == func_name {
@@ -175,7 +182,7 @@ impl BrilProgram {
                     }
                 }
                 Some(program::OpCode::Call) => {
-                    dynasm!(self.asm ; nop);
+                    dynasm!(self.asm ;; self.call_func("sixnine" as _));
                 }
                 // program::OpCode::Call => {
                 //     if let Some(args) = &inst.args {
