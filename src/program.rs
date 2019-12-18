@@ -16,21 +16,22 @@ pub enum InstrType {
 pub enum OpCode {
     BinOp(String),
     BinOpBool(String),
+    Call,
     Const,
     Nop,
     Print,
     UnOpBool(String),
 }
 
-#[derive(Deserialize, Debug, Serialize)]
+#[derive(Clone, Deserialize, Debug, Serialize)]
 pub struct Program {
     pub functions: Vec<Function>,
 }
 
-#[derive(Deserialize, Debug, Serialize)]
+#[derive(Clone, Deserialize, Debug, Serialize)]
 pub struct Function {
     pub instrs: Vec<Instruction>,
-    name: String,
+    pub name: String,
 }
 
 #[derive(Clone, Deserialize, Debug, Serialize)]
@@ -55,6 +56,7 @@ impl From<String> for OpCode {
       "not" => OpCode::UnOpBool(op),
       "const" => OpCode::Const,
       "print" => OpCode::Print,
+      "call" => OpCode::Call,
       _ => OpCode::Nop
     }
   }
