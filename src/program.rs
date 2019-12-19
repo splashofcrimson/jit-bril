@@ -34,8 +34,15 @@ pub struct Program {
 
 #[derive(Clone, Deserialize, Debug, Serialize)]
 pub struct Function {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub args: Option<Vec<Param>>,
     pub instrs: Vec<Instruction>,
     pub name: String,
+}
+
+#[derive(Clone, Deserialize, Debug, Serialize)]
+pub struct Param {
+    pub name: String
 }
 
 #[derive(Clone, Deserialize, Debug, Serialize)]
