@@ -2,9 +2,9 @@ use std::collections::HashMap;
 
 use super::program::InstrType::*;
 use super::program::*;
+
 type Op = OpCode;
 
-#[derive(Clone)]
 pub struct Env {
     env: HashMap<String, InstrType>,
 }
@@ -68,7 +68,7 @@ impl Interpreter {
         let mut i = 0;
         while i < func.instrs.len() {
             let instr = func.instrs.get(i).unwrap().clone();
-            let action = self.eval_instr(func, instr, env);
+            let action = self.eval_instr(instr, env);
             match action {
                 Action::Next => {
                     i += 1;
@@ -81,7 +81,7 @@ impl Interpreter {
         }
     }
 
-    pub fn eval_instr(&self, func: &Function, instr: Instruction, env: &mut Env) -> Action {
+    pub fn eval_instr(&self, instr: Instruction, env: &mut Env) -> Action {
         match instr.op.unwrap_or(Op::Nop) {
             Op::Const => {
                 env.put(instr.dest.unwrap(), instr.value.unwrap());
@@ -195,7 +195,6 @@ impl Interpreter {
                 let mut called = false;
                 for func in &self.program.functions {
                     if func.name == name {
-                        // TODO add args
                         match &func.args {
                             Some(params) => {
                                 for i in 0..params.len() {

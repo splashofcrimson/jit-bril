@@ -313,11 +313,11 @@ fn main() {
         }
     };
 
-    // let interpreter = Interpreter::new(bril_ir);
-    // interpreter.eval_program();
+    let interpreter = Interpreter::new(bril_ir);
+    interpreter.eval_program();
 
-    let mut bril_program = BrilProgram::new(bril_ir);
-    let main_idx: i64 = *bril_program.index_map.get("main").unwrap();
-    bril_program.compile_and_run(main_idx);
+    // let mut bril_program = BrilProgram::new(bril_ir);
+    // let main_idx: i64 = *bril_program.index_map.get("main").unwrap();
+    // bril_program.compile_and_run(main_idx);
 }
 
