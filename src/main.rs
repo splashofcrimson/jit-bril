@@ -6,6 +6,7 @@ extern crate dynasmrt;
 use dynasm::dynasm;
 use dynasmrt::{DynasmApi, DynasmLabelApi};
 use program::*;
+use std::io::{self, Write};
 
 use std::collections::HashMap;
 use std::{env, mem, process};
@@ -40,18 +41,29 @@ impl BrilProgram {
         bril
     }
 
-    pub fn run(self) -> bool {
-        let main_asm = self.compilation_map.get("main").unwrap();
-        let f: extern "stdcall" fn(&BrilProgram) -> bool = unsafe { mem::transmute(main_asm.code.ptr(main_asm.start)) };
-        return f(&self);
+    pub fn run(&mut self, func_name: &str) -> bool {
+        let main_asm = self.compilation_map.get(func_name).unwrap();
+        let func_names = self.get_func_names(self.find_func(func_name).unwrap());
+        let f: extern "stdcall" fn(&BrilProgram, &Vec<String>) -> bool = unsafe { mem::transmute(main_asm.code.ptr(main_asm.start)) };
+        return f(&self, &func_names);
     }
 
-    unsafe fn call_func(asdf: &BrilProgram) {
-        println!("hello");
-        println!("{}", (*asdf).compilation_map.contains_key("main"));
+    fn get_func_names(&self, func: program::Function) -> Vec<String> {
+        let mut func_names = Vec::new(); 
+        for inst in func.instrs.clone() {
+            match inst.op {
+                Some(program::OpCode::Call) => {
+                    let func = &inst.args.unwrap()[0];
+                    func_names.push(func.to_string());
+                }
+                None => { }
+                _ => { }
+            }
+        }
+        return func_names;
     }
     
-    fn find_func(&mut self, func_name: &str) -> Option<program::Function> {
+    fn find_func(&self, func_name: &str) -> Option<program::Function> {
         for func in self.bril_ir.functions.clone() {
             if func.name == func_name {
                 return Some(func.clone());
@@ -61,16 +73,34 @@ impl BrilProgram {
         None
     }
 
-    // fn func_call(&mut self, fun: String) {
-    //     dynasm!(asm
-    //         ; )
-    // }
+    
+    fn call_func(program: &mut BrilProgram, funcs: &Vec<String>, chosen_func: i64) {
+        let func_index = chosen_func as usize;
+        let func_name = &funcs[func_index];
+        if let Some(prog) = program.compilation_map.get(func_name) {
+            program.run(func_name);
+        }
+        else {
+            println!("{}", func_name);
+            io::stdout().flush().unwrap();
+            let bril_funcs = &program.bril_ir.functions;
+            let mut chosen_func = None;
+            for func in bril_funcs {
+                if func.name == func_name.to_string() {
+                    chosen_func = Some(func.clone());
+                }
+            }
+            let func_asm = program.compile(&chosen_func.unwrap());
+            program.compilation_map.insert(func_name.to_string(), func_asm);
+            program.run(func_name);
+        }
+    }
 
     pub fn compile(&mut self, bril_func: &program::Function) -> AsmProgram {
         let mut var_offsets = HashMap::<String, i32>::new();
         let mut var_types = HashMap::<String, String>::new();
         let mut labels = HashMap::<String, dynasmrt::DynamicLabel>::new();
-        let mut num_vars = 2;
+        let mut num_vars = 3;
 
         for inst in &bril_func.instrs {
             if let Some(dest) = &inst.dest {
@@ -97,6 +127,7 @@ impl BrilProgram {
             ; mov rbp, rsp
             ; sub rsp, num_bytes
             ; mov [rbp-8], rdi
+            ; mov [rbp-16], rsi
         );
 
         for inst in &bril_func.instrs {
@@ -181,9 +212,13 @@ impl BrilProgram {
                     }
                 }
                 Some(program::OpCode::Call) => {
+                    let func_names = self.get_func_names(bril_func.clone());
+                    let func_name = &inst.args.as_ref().unwrap()[0];
+                    let chosen_func_index = func_names.iter().position(|r| r.to_string() == func_name.to_string()).unwrap() as i32;
                     dynasm!(self.asm
                         ; mov rax, QWORD BrilProgram::call_func as _ 
                         ; mov rdi, [rbp-8]
+                        ; mov rdx, chosen_func_index
                         ; call rax
                     );
                 }
@@ -302,8 +337,8 @@ fn main() {
             process::exit(1);
         }
     };
-    let bril_program = BrilProgram::new(bril_ir);
-    bril_program.run();
+    let mut bril_program = BrilProgram::new(bril_ir);
+    bril_program.run("main");
     // println!("{}", asm_program.run());
 }
 
