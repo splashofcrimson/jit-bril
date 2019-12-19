@@ -15,7 +15,9 @@ mod program;
 struct BrilProgram {
     asm: dynasmrt::x64::Assembler,
     bril_ir: program::Program,
-    compilation_map: HashMap::<String, AsmProgram>,
+    index_map: HashMap::<String, i64>,
+    rev_index_map: HashMap::<i64, String>,
+    compilation_map: HashMap::<i64, AsmProgram>,
 }
 
 struct AsmProgram {
@@ -26,33 +28,53 @@ struct AsmProgram {
 impl BrilProgram {
     pub fn new(bril_program: program::Program) -> BrilProgram {
         let asm = dynasmrt::x64::Assembler::new().unwrap();
-        let compilation_map = HashMap::<String, AsmProgram>::new();
+        let mut index_map = HashMap::<String, i64>::new();
+        let mut rev_index_map = HashMap::<i64, String>::new();
+        let compilation_map = HashMap::<i64, AsmProgram>::new();
+
+        let mut i = 0;
+        for fun in &bril_program.functions {
+            index_map.insert(fun.name.clone(), i);
+            rev_index_map.insert(i, fun.name.clone());
+            i += 1;
+        }
 
         let mut bril = BrilProgram {
             asm: asm, 
-            bril_ir: bril_program.clone(),
+            bril_ir: bril_program,
+            index_map: index_map,
+            rev_index_map: rev_index_map,
             compilation_map: compilation_map,
         };
+
         let bril_func = bril.find_func("main").unwrap();
         let main_asm = bril.compile(&bril_func);
-        bril.compilation_map.insert("main".to_string(), main_asm);
+        bril.compilation_map.insert(*bril.index_map.get("main").unwrap(), main_asm);
 
         bril
     }
 
-    pub fn run(self) -> bool {
-        let main_asm = self.compilation_map.get("main").unwrap();
-        let f: extern "stdcall" fn(&BrilProgram) -> bool = unsafe { mem::transmute(main_asm.code.ptr(main_asm.start)) };
-        return f(&self);
+    pub fn run(self, func: &str) {
+        let f_asm = self.compilation_map.get(self.index_map.get(func).unwrap()).unwrap();
+        let f: fn(&BrilProgram) = unsafe { mem::transmute(f_asm.code.ptr(f_asm.start)) };
+        f(&self);
     }
 
-    unsafe fn call_func(asdf: &BrilProgram) {
-        println!("hello");
-        println!("{}", (*asdf).compilation_map.contains_key("main"));
+    fn call_func(self: &mut BrilProgram, func: i64) {
+        if let Some(f_asm) = self.compilation_map.get(&func) {
+            let f: fn(&BrilProgram) = unsafe { mem::transmute(f_asm.code.ptr(f_asm.start)) };
+            f(&self);
+        } else {
+            let f_name = self.rev_index_map.get(&func).unwrap();
+            let f_bril = self.find_func(f_name).unwrap();
+            let f_asm = self.compile(&f_bril);
+            let f: fn(&BrilProgram) = unsafe { mem::transmute(f_asm.code.ptr(f_asm.start)) };
+            f(&self);
+        }
     }
     
-    fn find_func(&mut self, func_name: &str) -> Option<program::Function> {
-        for func in self.bril_ir.functions.clone() {
+    fn find_func(&self, func_name: &str) -> Option<program::Function> {
+        for func in &self.bril_ir.functions {
             if func.name == func_name {
                 return Some(func.clone());
             }
@@ -60,11 +82,6 @@ impl BrilProgram {
 
         None
     }
-
-    // fn func_call(&mut self, fun: String) {
-    //     dynasm!(asm
-    //         ; )
-    // }
 
     pub fn compile(&mut self, bril_func: &program::Function) -> AsmProgram {
         let mut var_offsets = HashMap::<String, i32>::new();
@@ -96,7 +113,7 @@ impl BrilProgram {
             ; push rbp
             ; mov rbp, rsp
             ; sub rsp, num_bytes
-            ; mov [rbp-8], rdi
+            ; mov [rbp - 8], rdi
         );
 
         for inst in &bril_func.instrs {
@@ -181,25 +198,15 @@ impl BrilProgram {
                     }
                 }
                 Some(program::OpCode::Call) => {
-                    dynasm!(self.asm
-                        ; mov rax, QWORD BrilProgram::call_func as _ 
-                        ; mov rdi, [rbp-8]
-                        ; call rax
-                    );
+                    if let Some(args) = &inst.args {
+                        dynasm!(self.asm
+                            ; mov rax, QWORD BrilProgram::call_func as _ 
+                            ; mov rdi, [rbp - 8]
+                            ; mov rsi, QWORD *self.index_map.get(&args[0]).unwrap()
+                            ; call rax
+                        );
+                    }
                 }
-                // program::OpCode::Call => {
-                //     if let Some(args) = &inst.args {
-                //         dynasm!(asm
-                //             ; ->sixnine:
-                //             ; .bytes string.as_bytes()
-                //             ; lea rcx, [->sixnine]
-                //             ; xor edx, edx
-                //             ; mov dl, BYTE string.len() as _
-                //             ; mov rax, QWORD call_func as _
-                //         );
-                //         );
-                //     }
-                // }
                 Some(program::OpCode::Print) => {
                     if let Some(args) = &inst.args {
                         for arg in args {
@@ -303,7 +310,7 @@ fn main() {
         }
     };
     let bril_program = BrilProgram::new(bril_ir);
-    bril_program.run();
+    bril_program.run("main");
     // println!("{}", asm_program.run());
 }
 
