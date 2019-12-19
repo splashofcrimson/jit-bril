@@ -49,14 +49,40 @@ impl Interpreter {
         }
     }
 
+    pub fn find_label(func: &Function, label: String) -> usize {
+        let mut i = 0;
+        while i < func.instrs.len() {
+            if func.instrs.get(i).unwrap().label == Some(label.to_string()) {
+                break;
+            }
+            i += 1;
+        }
+        if i < func.instrs.len() {
+            i
+        } else {
+            panic!("Label not found");
+        }
+    }
+
     pub fn eval_func(&self, func: &Function, env: &mut Env) {
-        for instr in &func.instrs {
-            let action = self.eval_instr(func, instr.clone(), env);
+        let mut i = 0;
+        while i < func.instrs.len() {
+            let instr = func.instrs.get(i).unwrap().clone();
+            let action = self.eval_instr(func, instr, env);
+            match action {
+                Action::Next => {
+                    i += 1;
+                }
+                Action::Jump(label) => {
+                    i = Interpreter::find_label(&func, label);
+                }
+                Action::Return => break,
+            }
         }
     }
 
     pub fn eval_instr(&self, func: &Function, instr: Instruction, env: &mut Env) -> Action {
-        match instr.op.unwrap() {
+        match instr.op.unwrap_or(Op::Nop) {
             Op::Const => {
                 env.put(instr.dest.unwrap(), instr.value.unwrap());
                 Action::Next
