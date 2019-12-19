@@ -222,19 +222,6 @@ impl BrilProgram {
                         ; call rax
                     );
                 }
-                // program::OpCode::Call => {
-                //     if let Some(args) = &inst.args {
-                //         dynasm!(asm
-                //             ; ->sixnine:
-                //             ; .bytes string.as_bytes()
-                //             ; lea rcx, [->sixnine]
-                //             ; xor edx, edx
-                //             ; mov dl, BYTE string.len() as _
-                //             ; mov rax, QWORD call_func as _
-                //         );
-                //         );
-                //     }
-                // }
                 Some(program::OpCode::Print) => {
                     if let Some(args) = &inst.args {
                         for arg in args {
