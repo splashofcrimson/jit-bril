@@ -54,6 +54,7 @@ impl BrilProgram {
             let func_bril = self.bril_map.remove(&func_idx).unwrap();
             let func_asm = self.compile(&func_bril);
             let func: fn(&BrilProgram) = unsafe { mem::transmute(func_asm.code.ptr(func_asm.start)) };
+            self.asm_map.insert(func_idx, func_asm);
             func(&self)
         }
     }
