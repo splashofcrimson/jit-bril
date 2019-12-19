@@ -1,0 +1,243 @@
+{
+  "functions": [
+    {
+      "instrs": [
+        {
+          "dest": "n",
+          "op": "const",
+          "type": "int",
+          "value": 451
+        },
+        {
+          "dest": "a",
+          "op": "const",
+          "type": "int",
+          "value": 0
+        },
+        {
+          "dest": "b",
+          "op": "const",
+          "type": "int",
+          "value": 1
+        },
+        {
+          "dest": "i",
+          "op": "const",
+          "type": "int",
+          "value": 1
+        },
+        {
+          "dest": "one",
+          "op": "const",
+          "type": "int",
+          "value": 1
+        },
+        {
+          "label": "start"
+        },
+        {
+          "args": [
+            "i",
+            "n"
+          ],
+          "dest": "cmp",
+          "op": "le",
+          "type": "bool"
+        },
+        {
+          "args": [
+            "cmp",
+            "here",
+            "there"
+          ],
+          "op": "br"
+        },
+        {
+          "label": "here"
+        },
+        {
+          "args": [
+            "a",
+            "b"
+          ],
+          "dest": "c",
+          "op": "add",
+          "type": "int"
+        },
+        {
+          "args": [
+            "b"
+          ],
+          "dest": "a",
+          "op": "id",
+          "type": "int"
+        },
+        {
+          "args": [
+            "c"
+          ],
+          "dest": "b",
+          "op": "id",
+          "type": "int"
+        },
+        {
+          "args": [
+            "i",
+            "one"
+          ],
+          "dest": "i",
+          "op": "add",
+          "type": "int"
+        },
+        {
+          "args": [
+            "start"
+          ],
+          "op": "jmp"
+        },
+        {
+          "label": "there"
+        },
+        {
+          "args": [
+            "b"
+          ],
+          "op": "print"
+        },
+        {
+          "args": [],
+          "op": "ret"
+        }
+      ],
+      "name": "f_0"
+    },
+    {
+      "instrs": [
+        {
+          "dest": "n",
+          "op": "const",
+          "type": "int",
+          "value": 812
+        },
+        {
+          "dest": "a",
+          "op": "const",
+          "type": "int",
+          "value": 0
+        },
+        {
+          "dest": "b",
+          "op": "const",
+          "type": "int",
+          "value": 1
+        },
+        {
+          "dest": "i",
+          "op": "const",
+          "type": "int",
+          "value": 1
+        },
+        {
+          "dest": "one",
+          "op": "const",
+          "type": "int",
+          "value": 1
+        },
+        {
+          "label": "start"
+        },
+        {
+          "args": [
+            "i",
+            "n"
+          ],
+          "dest": "cmp",
+          "op": "le",
+          "type": "bool"
+        },
+        {
+          "args": [
+            "cmp",
+            "here",
+            "there"
+          ],
+          "op": "br"
+        },
+        {
+          "label": "here"
+        },
+        {
+          "args": [
+            "a",
+            "b"
+          ],
+          "dest": "c",
+          "op": "add",
+          "type": "int"
+        },
+        {
+          "args": [
+            "b"
+          ],
+          "dest": "a",
+          "op": "id",
+          "type": "int"
+        },
+        {
+          "args": [
+            "c"
+          ],
+          "dest": "b",
+          "op": "id",
+          "type": "int"
+        },
+        {
+          "args": [
+            "i",
+            "one"
+          ],
+          "dest": "i",
+          "op": "add",
+          "type": "int"
+        },
+        {
+          "args": [
+            "start"
+          ],
+          "op": "jmp"
+        },
+        {
+          "label": "there"
+        },
+        {
+          "args": [
+            "b"
+          ],
+          "op": "print"
+        },
+        {
+          "args": [],
+          "op": "ret"
+        }
+      ],
+      "name": "f_1"
+    },
+    {
+      "instrs": [
+        {
+          "args": [
+            "f_0"
+          ],
+          "op": "call"
+        },
+        {
+          "args": [
+            "f_1"
+          ],
+          "op": "call"
+        }
+      ],
+      "name": "main"
+    }
+  ]
+}

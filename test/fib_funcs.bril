@@ -1,0 +1,44 @@
+f_0 {
+    n:int = const 451;
+    a:int = const 0;
+    b:int = const 1;
+    i:int = const 1;
+    one:int = const 1;
+    start:
+    cmp:bool = le i n;
+    br cmp here there;
+    here:
+    c:int = add a b;
+    a:int = id b;
+    b:int = id c;
+    i:int = add i one;
+    jmp start;
+    there:
+    print b;
+    ret;
+}
+f_1 {
+    n:int = const 812;
+    a:int = const 0;
+    b:int = const 1;
+    i:int = const 1;
+    one:int = const 1;
+    start:
+    cmp:bool = le i n;
+    br cmp here there;
+    here:
+    c:int = add a b;
+    a:int = id b;
+    b:int = id c;
+    i:int = add i one;
+    jmp start;
+    there:
+    print b;
+    ret;
+}
+
+
+main {
+    call f_0;
+    call f_1;
+}
