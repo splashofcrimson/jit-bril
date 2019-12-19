@@ -42,15 +42,13 @@ impl BrilProgram {
 
     pub fn run(self) -> bool {
         let main_asm = self.compilation_map.get("main").unwrap();
-        let f: extern "stdcall" fn() -> bool = unsafe { mem::transmute(main_asm.code.ptr(main_asm.start)) };
-        return f();
+        let f: extern "stdcall" fn(&BrilProgram) -> bool = unsafe { mem::transmute(main_asm.code.ptr(main_asm.start)) };
+        return f(&self);
     }
 
-    fn call_func(&mut self, func_name: &str) {
-        let func = self.find_func(&func_name).unwrap();
-        let func_asm = self.compile(&func);
-        let f: extern "stdcall" fn() -> bool = unsafe { mem::transmute(func_asm.code.ptr(func_asm.start)) };
-        f();
+    unsafe fn call_func(asdf: &BrilProgram) {
+        println!("hello");
+        println!("{}", (*asdf).compilation_map.contains_key("main"));
     }
     
     fn find_func(&mut self, func_name: &str) -> Option<program::Function> {
@@ -72,7 +70,7 @@ impl BrilProgram {
         let mut var_offsets = HashMap::<String, i32>::new();
         let mut var_types = HashMap::<String, String>::new();
         let mut labels = HashMap::<String, dynasmrt::DynamicLabel>::new();
-        let mut num_vars = 1;
+        let mut num_vars = 2;
 
         for inst in &bril_func.instrs {
             if let Some(dest) = &inst.dest {
@@ -98,6 +96,7 @@ impl BrilProgram {
             ; push rbp
             ; mov rbp, rsp
             ; sub rsp, num_bytes
+            ; mov [rbp-8], rdi
         );
 
         for inst in &bril_func.instrs {
@@ -182,7 +181,11 @@ impl BrilProgram {
                     }
                 }
                 Some(program::OpCode::Call) => {
-                    dynasm!(self.asm ;; self.call_func("sixnine" as _));
+                    dynasm!(self.asm
+                        ; mov rax, QWORD BrilProgram::call_func as _ 
+                        ; mov rdi, [rbp-8]
+                        ; call rax
+                    );
                 }
                 // program::OpCode::Call => {
                 //     if let Some(args) = &inst.args {
