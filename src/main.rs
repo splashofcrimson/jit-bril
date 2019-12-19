@@ -6,11 +6,13 @@ extern crate dynasmrt;
 use dynasm::dynasm;
 use dynasmrt::{DynasmApi, DynasmLabelApi};
 use program::*;
+use interpreter::Interpreter;
 
 use std::collections::HashMap;
 use std::{env, mem, process};
 
 mod program;
+mod interpreter;
 
 struct BrilProgram {
     asm: dynasmrt::x64::Assembler,
@@ -310,6 +312,9 @@ fn main() {
             process::exit(1);
         }
     };
+
+    // let interpreter = Interpreter::new(bril_ir);
+    // interpreter.eval_program();
 
     let mut bril_program = BrilProgram::new(bril_ir);
     let main_idx: i64 = *bril_program.index_map.get("main").unwrap();
