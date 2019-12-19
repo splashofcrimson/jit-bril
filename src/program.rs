@@ -7,7 +7,7 @@ use std::io::BufReader;
 #[derive(Clone, Deserialize, Debug, Serialize)]
 #[serde(untagged)]
 pub enum InstrType {
-    VInt(i32),
+    VInt(i64),
     VBool(bool),
 }
 

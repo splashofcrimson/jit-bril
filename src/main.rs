@@ -154,11 +154,11 @@ impl BrilProgram {
                 }
                 Some(program::OpCode::Const) => {
                     if let Some(dest) = &inst.dest {
-                        match inst.value.as_ref().unwrap_or(&InstrType::VInt(0)) {
+                        match inst.value.as_ref().unwrap() {
                             InstrType::VInt(value) => {
                                 if let Some(&d) = var_offsets.get(dest) {
                                     dynasm!(self.asm
-                                        ; mov rax, *value
+                                        ; mov rax, QWORD *value
                                         ; mov [rbp - d], rax
                                     );
                                 }
