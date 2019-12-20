@@ -11,9 +11,3 @@ Cargo.lock
 
 # VSCode
 /.vscode/
-
-# Bril files
-*.bril
-*.json
-*.py
-
