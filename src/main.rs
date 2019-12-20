@@ -9,7 +9,7 @@ use program::*;
 use interpreter::Interpreter;
 
 use std::collections::HashMap;
-use std::{mem, process, io::{self, Read}};
+use std::{env, mem, process, io::{self, Read}};
 
 mod program;
 mod interpreter;
@@ -299,6 +299,13 @@ fn get_dyn_label(
 }
 
 fn main() {
+    let args: Vec<String> = env::args().collect();
+    println!("{:?}", args);
+
+    if (args.len() != 2) {
+        eprintln!("Error: missing evaluation mode");
+    }
+
     let mut buffer = String::new();
     let stdin = io::stdin();
     let mut handle = stdin.lock();
@@ -312,11 +319,20 @@ fn main() {
         }
     };
 
-    let interpreter = Interpreter::new(bril_ir);
-    interpreter.eval_program();
+    let mode = &args[1];
 
-    // let mut bril_program = BrilProgram::new(bril_ir);
-    // let main_idx: i64 = *bril_program.index_map.get("main").unwrap();
-    // bril_program.compile_and_run(main_idx);
+    if (mode == "interp") {
+        let interpreter = Interpreter::new(bril_ir);
+        interpreter.eval_program();
+    }
+    else if (mode == "jit") {
+        let mut bril_program = BrilProgram::new(bril_ir);
+        let main_idx: i64 = *bril_program.index_map.get("main").unwrap();
+        bril_program.compile_and_run(main_idx);
+    }
+    else {
+        eprintln!("Invalid mode");
+    }
+
 }
 
