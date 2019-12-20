@@ -49,7 +49,7 @@ impl Interpreter {
         }
     }
 
-    pub fn find_label(func: &Function, label: String) -> usize {
+    pub fn find_label(func: &Function, label: String) -> Option<usize> {
         let mut i = 0;
         while i < func.instrs.len() {
             if func.instrs.get(i).unwrap().label == Some(label.to_string()) {
@@ -58,41 +58,50 @@ impl Interpreter {
             i += 1;
         }
         if i < func.instrs.len() {
-            i
+            Some(i)
         } else {
-            panic!("Label not found");
+            None
         }
     }
 
-    pub fn eval_func(&self, func: &Function, env: &mut Env) {
+    pub fn eval_func(&self, func: &Function, env: &mut Env) -> bool {
         let mut i = 0;
         while i < func.instrs.len() {
             let instr = func.instrs.get(i).unwrap().clone();
             let action = self.eval_instr(instr, env);
             match action {
-                Action::Next => {
+                Ok(Action::Next) => {
                     i += 1;
                 }
-                Action::Jump(label) => {
-                    i = Interpreter::find_label(&func, label);
+                Ok(Action::Jump(label)) => match Interpreter::find_label(&func, label) {
+                    Some(v) => i = v,
+                    None => {
+                        println!("Couldn't find label to jump to");
+                        return false;
+                    }
+                },
+                Ok(Action::Return) => break,
+                Err(s) => {
+                    println!("{}", s);
+                    return false;
                 }
-                Action::Return => break,
             }
         }
+        true
     }
 
-    pub fn eval_instr(&self, instr: Instruction, env: &mut Env) -> Action {
+    pub fn eval_instr(&self, instr: Instruction, env: &mut Env) -> Result<Action, &str> {
         match instr.op.unwrap_or(Op::Nop) {
             Op::Const => {
                 env.put(instr.dest.unwrap(), instr.value.unwrap());
-                Action::Next
+                Ok(Action::Next)
             }
 
             Op::Id => {
                 let src = instr.args.unwrap().get(0).unwrap().to_string();
                 let val = env.get(src).unwrap();
                 env.put(instr.dest.unwrap(), val);
-                Action::Next
+                Ok(Action::Next)
             }
 
             Op::BinOp(op) => {
@@ -100,11 +109,11 @@ impl Interpreter {
                 let v2 = instr.args.clone().unwrap().get(1).unwrap().to_string();
                 let val1 = match env.get(v1).unwrap() {
                     VInt(v) => v,
-                    VBool(_) => panic!("Expected int, got bool"),
+                    VBool(_) => return Err("Expected int, got bool")
                 };
                 let val2 = match env.get(v2).unwrap() {
                     VInt(v) => v,
-                    VBool(_) => panic!("Expected int, got bool"),
+                    VBool(_) => return Err("Expected int, got bool")
                 };
 
                 let dest = instr.dest.unwrap().to_string();
@@ -118,20 +127,20 @@ impl Interpreter {
                     "gt" => env.put(dest, VBool(val1 > val2)),
                     "ge" => env.put(dest, VBool(val1 >= val2)),
                     "eq" => env.put(dest, VBool(val1 == val2)),
-                    _ => panic!("unknown binop"),
+                    _ => return Err("Unknown binop")
                 };
-                Action::Next
+                Ok(Action::Next)
             }
 
             Op::BinOpBool(op) => {
                 let v1 = instr.args.clone().unwrap().get(0).unwrap().to_string();
                 let v2 = instr.args.clone().unwrap().get(1).unwrap().to_string();
                 let val1 = match env.get(v1).unwrap() {
-                    VInt(_) => panic!("Expected bool, got int"),
+                    VInt(_) => return Err("Expected bool, got int"),
                     VBool(b) => b,
                 };
                 let val2 = match env.get(v2).unwrap() {
-                    VInt(_) => panic!("Expected bool, got int"),
+                    VInt(_) => return Err("Expected bool, got int"),
                     VBool(b) => b,
                 };
 
@@ -139,24 +148,24 @@ impl Interpreter {
                 match op.as_str() {
                     "and" => env.put(dest, VBool(val1 && val2)),
                     "or" => env.put(dest, VBool(val1 || val2)),
-                    _ => panic!("Unknown boolean binop"),
+                    _ => return Err("Unknown boolean binop"),
                 };
-                Action::Next
+                Ok(Action::Next)
             }
 
             Op::UnOpBool(op) => {
                 let v1 = instr.args.unwrap().get(0).unwrap().to_string();
                 let val1 = match env.get(v1).unwrap() {
-                    VInt(_) => panic!("Expected bool, got int"),
+                    VInt(_) => return Err("Expected bool, got int"),
                     VBool(b) => b,
                 };
 
                 let dest = instr.dest.unwrap().to_string();
                 match op.as_str() {
                     "not" => env.put(dest, VBool(!val1)),
-                    _ => panic!("Unknown unop"),
+                    _ => return Err("Unknown unop"),
                 };
-                Action::Next
+                Ok(Action::Next)
             }
 
             Op::Print => {
@@ -167,24 +176,24 @@ impl Interpreter {
                     };
                 }
                 println!();
-                Action::Next
+                Ok(Action::Next)
             }
 
             Op::Jmp => {
                 let label = instr.args.unwrap().get(0).unwrap().to_string();
-                Action::Jump(label)
+                Ok(Action::Jump(label))
             }
 
             Op::Br => {
                 let v1 = instr.args.clone().unwrap().get(0).unwrap().to_string();
                 let val = match env.get(v1).unwrap() {
-                    VInt(_) => panic!("Expected bool in br, got int"),
+                    VInt(_) => return Err("Expected bool in br, got int"),
                     VBool(b) => b,
                 };
                 if val {
-                    Action::Jump(instr.args.clone().unwrap().get(1).unwrap().to_string())
+                    Ok(Action::Jump(instr.args.clone().unwrap().get(1).unwrap().to_string()))
                 } else {
-                    Action::Jump(instr.args.clone().unwrap().get(2).unwrap().to_string())
+                    Ok(Action::Jump(instr.args.clone().unwrap().get(2).unwrap().to_string()))
                 }
             }
 
@@ -206,7 +215,10 @@ impl Interpreter {
 
                             None => (),
                         }
-                        self.eval_func(&func, new_env);
+                        let result = self.eval_func(&func, new_env);
+                        if !result {
+                            return Err("Failed when calling function");
+                        }
                         called = true;
                     }
                 }
@@ -218,9 +230,9 @@ impl Interpreter {
 
                         None => (),
                     }
-                    Action::Next
+                    Ok(Action::Next)
                 } else {
-                    panic!("Function not found");
+                    return Err("Function not found");
                 }
             }
 
@@ -229,10 +241,10 @@ impl Interpreter {
                     let return_val = env.get(instr.args.unwrap().get(0).unwrap().to_string());
                     env.put("_ rho".to_string(), return_val.unwrap());
                 }
-                Action::Return
+                Ok(Action::Return)
             }
 
-            Op::Nop => Action::Next,
+            Op::Nop => Ok(Action::Next),
         }
     }
 }

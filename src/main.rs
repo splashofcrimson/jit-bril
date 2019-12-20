@@ -10,13 +10,11 @@ mod program;
 
 fn main() {
     let args: Vec<String> = env::args().collect();
-    println!("{:?}", args);
-
-    let mut buffer = String::new();
-    let stdin = io::stdin();
-    let mut handle = stdin.lock();
-    let _ = handle.read_to_string(&mut buffer);
-    let bril_ir = match serde_json::from_str(&buffer) {
+    if args.len() != 3 {
+        eprintln!("Expected one argument");
+        process::exit(1);
+    }
+    let bril_ir = match program::read_json(&args[2]) {
         Ok(p) => p,
         Err(e) => {
             eprintln!("{}", e);
@@ -25,13 +23,7 @@ fn main() {
         }
     };
 
-    let mode;
-
-    if args.len() == 1 {
-        mode = "jit";
-    } else {
-        mode = &args[1];
-    }
+    let mode = &args[1];
 
     if mode == "interp" {
         let interpreter = Interpreter::new(bril_ir);
