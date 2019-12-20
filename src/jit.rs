@@ -81,48 +81,30 @@ impl<'a> Interpreter<'a> {
         }
     }
 
-    pub fn handle_call(&mut self, func_idx: i64, args: Vec<i64>) {
+    pub fn handle_call(&mut self, func_idx: i64, args: Vec<i64>) -> Option<i64> {
         println!("Received args {:?}", args);
         if let Some(func_asm) = self.asm_map.get(&func_idx) {
-            let func: fn(&Interpreter) = unsafe { mem::transmute(func_asm.code.ptr(func_asm.start)) };
-            func(&self);
+            let func: fn(&Interpreter) -> Option<i64> = unsafe { mem::transmute(func_asm.code.ptr(func_asm.start)) };
+            let x = func(&self);
+            println!("pre-compiled func returned {:?}", x);
+            return x;
         } else {
             if true {
                 if true {
                     let func_bril = self.bril_map.remove(&func_idx).unwrap();
                     let func_asm = self.compile(&func_bril);
-                    let func: fn(&Interpreter) = unsafe { mem::transmute(func_asm.code.ptr(func_asm.start)) };
+                    let func: fn(&Interpreter) -> Option<i64> = unsafe { mem::transmute(func_asm.code.ptr(func_asm.start)) };
                     self.asm_map.insert(func_idx, func_asm);
-                    func(&self);
+                    let x = func(&self);
+                    println!("func returned {:?}", x);
+                    return x;
                 }
                 else {
-                    let bril_func = self.bril_map.get(&func_idx).unwrap().clone();
-                    let name = bril_func.name;
-                    // let args = instr.args.unwrap().get(1..).unwrap().to_vec();
-                    let new_env = &mut Env::new();
-                    let mut called = false;
-                    for func in &self.program.functions {
-                        if func.name == *name {
-                            // match &func.args {
-                            //     Some(params) => {
-                            //         for i in 0..params.len() {
-                            //             let name = params.get(i).unwrap().name.to_string();
-                            //             let val = args.get(i).unwrap().to_string();
-                            //             new_env.put(name, env.get(val).unwrap());
-                            //             }
-                            //         }
-                            //     None => (),
-                            // }
-                            let result = self.eval_func(&func, new_env);
-                            if !result {
-                                println!("Failed when calling function");
-                            }
-                            called = true;
-                        }
-                    }
+                    // TODO Run function in Bril!!
                 }
             }
         }
+        None
     }
 
     pub fn compile(&mut self, bril_func: &Function) -> AsmProgram {
@@ -268,6 +250,14 @@ impl<'a> Interpreter<'a> {
                             ; mov rsi, QWORD *self.index_map.get(name).unwrap()
                             ; mov rdx, rsp
                             ; call rax
+                        );
+                        if let Some(dest) = &inst.dest {
+                            let value = var_offsets.get(dest).unwrap();
+                            dynasm!(self.asm
+                                ; mov [rbp - value], rdx
+                            );
+                        }
+                        dynasm!(self.asm
                             ; add rsp, num_bytes
                         );
                     }
@@ -318,7 +308,21 @@ impl<'a> Interpreter<'a> {
 
                 }
                 Some(OpCode::Ret) => {
-                    // epilogue
+                    if let Some(args) = &inst.args {
+                        if let Some(&offset) = var_offsets.get(&args[0]) {
+                            dynasm!(self.asm
+                                ; mov rax, 1
+                                ; mov rdx, [rbp - offset]
+                            );
+                        } else {
+                            panic!("couldn't find var offset");
+                        }
+                    } else {
+                        dynasm!(self.asm
+                            ; mov rax, 0
+                            ; mov rdx, 0
+                        );
+                    }
                     dynasm!(self.asm
                         ; mov rsp, rbp
                         ; pop rbp
