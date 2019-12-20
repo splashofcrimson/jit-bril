@@ -300,11 +300,11 @@ fn get_dyn_label(
 
 fn main() {
     let args: Vec<String> = env::args().collect();
-    if args.len() != 2 {
+    if args.len() != 3 {
         eprintln!("Expected one argument");
         process::exit(1);
     }
-    let bril_ir = match program::read_json(&args[1]) {
+    let bril_ir = match program::read_json(&args[2]) {
         Ok(p) => p,
         Err(e) => {
             eprintln!("{}", e);
@@ -313,11 +313,20 @@ fn main() {
         }
     };
 
-    let interpreter = Interpreter::new(bril_ir);
-    interpreter.eval_program();
+    let mode = &args[1];
 
-    // let mut bril_program = BrilProgram::new(bril_ir);
-    // let main_idx: i64 = *bril_program.index_map.get("main").unwrap();
-    // bril_program.compile_and_run(main_idx);
+    if mode == "interp" {
+        let interpreter = Interpreter::new(bril_ir);
+        interpreter.eval_program();
+    }
+    else if mode == "jit" {
+        let mut bril_program = BrilProgram::new(bril_ir);
+        let main_idx: i64 = *bril_program.index_map.get("main").unwrap();
+        bril_program.compile_and_run(main_idx);
+    }
+    else {
+        eprintln!("Invalid mode");
+    }
+
 }
 
