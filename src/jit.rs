@@ -100,7 +100,35 @@ impl<'a> Interpreter<'a> {
                     println!("func returned {:?}", x);
                     return x;
                 } else {
-                    // TODO Run function in Bril!!
+                    let func_bril = self.bril_map.get(&func_idx).unwrap();
+                    let name = &func_bril.name;
+                    let new_env = &mut Env::new();
+                    let mut called = false;
+                    for func in &self.program.functions {
+                        if func.name == *name {
+                            match &func.args {
+                                Some(params) => {
+                                    for i in 0..params.len() {
+                                        let name = &params.get(i).unwrap().name;
+                                        new_env.put(&name, args[i]);
+                                    }
+                                }
+
+                                None => (),
+                            }
+                            let result = self.eval_func(&func, new_env);
+                            if !result {
+                                panic!("Failed when calling function");
+                            }
+                            called = true;
+                            break;
+                        }
+                    }
+                    if called {
+                        return new_env.get("_ rho");
+                    } else {
+                        panic!("Function not found");
+                    }
                 }
             }
         }
@@ -536,47 +564,16 @@ impl<'a> Interpreter<'a> {
             Op::Call => {
                 let instr_args = &(instr.args).as_ref().unwrap();
                 let name = &instr_args[0];
-                // let new_env = &mut Env::new();
-                // let mut called = false;
-                // // TODO handle call
-                // for func in &self.program.functions {
-                //     if func.name == *name {
-                //         match &func.args {
-                //             Some(params) => {
-                //                 for i in 0..params.len() {
-                //                     let name = &params.get(i).unwrap().name;
-                //                     let val = &instr_args[i + 1];
-                //                     new_env.put(&name, env.get(&val).unwrap());
-                //                 }
-                //             }
-
-                //             None => (),
-                //         }
-                //         let result = self.eval_func(&func, new_env);
-                //         if !result {
-                //             return Err("Failed when calling function");
-                //         }
-                //         called = true;
-                //     }
-                // }
-                // if called {
-                //     match instr.dest.as_ref() {
-                //         Some(dest) => {
-                //             env.put(dest, new_env.get("_ rho").unwrap());
-                //         }
-
-                //         None => (),
-                //     }
-                //     Ok(Action::Next)
-                // } else {
-                //     return Err("Function not found");
-                // }
                 let func_idx = self.index_map.get(name).unwrap().clone();
                 let mut args = Vec::new();
                 for arg in &instr_args[1..] {
                     args.push(env.get(&arg).unwrap());
                 }
-                self.handle_call(func_idx, args);
+                let result = self.handle_call(func_idx, args);
+                match &instr.dest {
+                    Some(var) => env.put(&var, result.unwrap()),
+                    None => (),
+                };
                 Ok(Action::Next)
             }
 
