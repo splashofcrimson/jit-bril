@@ -1,20 +1,19 @@
-use std::collections::HashMap;
-
+use fnv::FnvHashMap;
 use super::program::InstrType::*;
 use super::program::*;
 
-static return_var: &'static str = "_ rho";
+static RETURN_VAR: &'static str = "_ rho";
 
 type Op = OpCode;
 
 pub struct Env<'a> {
-    env: HashMap<&'a str, InstrType>,
+    env: FnvHashMap<&'a str, InstrType>
 }
 
 impl<'a> Env<'a> {
     pub fn new() -> Env<'a> {
         Env {
-            env: HashMap::new(),
+            env: FnvHashMap::default()
         }
     }
 
@@ -98,7 +97,7 @@ impl<'a> Interpreter<'a> {
             Op::Const => {
                 env.put(
                     instr.dest.as_ref().unwrap(),
-                    instr.value.as_ref().unwrap().clone(),
+                    instr.value.as_ref().unwrap().to_owned(),
                 );
                 Ok(Action::Next)
             }
@@ -252,7 +251,7 @@ impl<'a> Interpreter<'a> {
                 let instr_args = &(instr.args).as_ref().unwrap();
                 if instr_args.len() > 0 {
                     let return_val = env.get(&instr_args[0]);
-                    env.put(&return_var, return_val.unwrap());
+                    env.put(&RETURN_VAR, return_val.unwrap());
                 }
                 Ok(Action::Return)
             }

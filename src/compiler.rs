@@ -15,7 +15,7 @@ pub struct Compiler {
     bril_map: HashMap::<i64, Function>,
 }
 
-struct AsmProgram {
+pub struct AsmProgram {
     code: dynasmrt::ExecutableBuffer,
     start: dynasmrt::AssemblyOffset,
 }
