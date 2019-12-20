@@ -348,9 +348,10 @@ impl<'a> Interpreter<'a> {
         }
 
         // epilogue
-        dynasm!(self.asm
+        dynasm!(self.asm 
             ; mov rsp, rbp
             ; pop rbp
+            ; mov rax, 0
             ; ret
         );
         let mut asm_final = dynasmrt::x64::Assembler::new().unwrap();
