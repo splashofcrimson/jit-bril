@@ -1,4 +1,3 @@
-use super::program::InstrType::*;
 use super::program::*;
 use fnv::FnvHashMap;
 
@@ -21,7 +20,7 @@ pub struct AsmProgram {
 }
 
 pub struct Env<'a> {
-    env: FnvHashMap<&'a str, InstrType>,
+    env: FnvHashMap<&'a str, i64>,
 }
 
 impl<'a> Env<'a> {
@@ -31,11 +30,11 @@ impl<'a> Env<'a> {
         }
     }
 
-    pub fn get(&mut self, var_name: &'a str) -> Option<InstrType> {
+    pub fn get(&mut self, var_name: &'a str) -> Option<i64> {
         self.env.get(&var_name).cloned()
     }
 
-    pub fn put(&mut self, var_name: &'a str, val: InstrType) {
+    pub fn put(&mut self, var_name: &'a str, val: i64) {
         self.env.insert(var_name, val);
     }
 }
@@ -200,24 +199,12 @@ impl<'a> Interpreter<'a> {
                 }
                 Some(OpCode::Const) => {
                     if let Some(dest) = &inst.dest {
-                        match inst.value.as_ref().unwrap() {
-                            InstrType::VInt(value) => {
-                                if let Some(&d) = var_offsets.get(dest) {
-                                    dynasm!(self.asm
-                                        ; mov rax, QWORD *value
-                                        ; mov [rbp - d], rax
-                                    );
-                                }
-                            }
-                            InstrType::VBool(value) => {
-                                let value_int = *value as i32;
-                                if let Some(&d) = var_offsets.get(dest) {
-                                    dynasm!(self.asm
-                                        ; mov rax, value_int
-                                        ; mov [rbp - d], rax
-                                    );
-                                }
-                            },
+                        let value = inst.value.as_ref().unwrap();
+                        if let Some(&d) = var_offsets.get(dest) {
+                            dynasm!(self.asm
+                                ; mov rax, QWORD *value
+                                ; mov [rbp - d], rax
+                            );
                         }
                     }
                 }
@@ -438,26 +425,20 @@ impl<'a> Interpreter<'a> {
                 let instr_args = &(instr.args).as_ref().unwrap();
                 let v1 = &instr_args[0];
                 let v2 = &instr_args[1];
-                let val1 = match env.get(v1).unwrap() {
-                    VInt(v) => v,
-                    VBool(_) => return Err("Expected int, got bool"),
-                };
-                let val2 = match env.get(v2).unwrap() {
-                    VInt(v) => v,
-                    VBool(_) => return Err("Expected int, got bool"),
-                };
+                let val1 = env.get(v1).unwrap();
+                let val2 = env.get(v2).unwrap();
 
                 let dest = instr.dest.as_ref().unwrap();
                 match op.as_str() {
-                    "add" => env.put(dest, VInt(val1 + val2)),
-                    "mul" => env.put(dest, VInt(val1 * val2)),
-                    "sub" => env.put(dest, VInt(val1 - val2)),
-                    "div" => env.put(dest, VInt(val1 / val2)),
-                    "le" => env.put(dest, VBool(val1 <= val2)),
-                    "lt" => env.put(dest, VBool(val1 < val2)),
-                    "gt" => env.put(dest, VBool(val1 > val2)),
-                    "ge" => env.put(dest, VBool(val1 >= val2)),
-                    "eq" => env.put(dest, VBool(val1 == val2)),
+                    "add" => env.put(dest, val1 + val2),
+                    "mul" => env.put(dest, val1 * val2),
+                    "sub" => env.put(dest, val1 - val2),
+                    "div" => env.put(dest, val1 / val2),
+                    "le" => env.put(dest, (val1 <= val2) as i64),
+                    "lt" => env.put(dest, (val1 < val2) as i64),
+                    "gt" => env.put(dest, (val1 > val2) as i64),
+                    "ge" => env.put(dest, (val1 >= val2) as i64),
+                    "eq" => env.put(dest, (val1 == val2) as i64),
                     _ => return Err("Unknown binop"),
                 };
                 Ok(Action::Next)
@@ -467,19 +448,13 @@ impl<'a> Interpreter<'a> {
                 let instr_args = &(instr.args).as_ref().unwrap();
                 let v1 = &instr_args[0];
                 let v2 = &instr_args[1];
-                let val1 = match env.get(v1).unwrap() {
-                    VInt(_) => return Err("Expected bool, got int"),
-                    VBool(b) => b,
-                };
-                let val2 = match env.get(v2).unwrap() {
-                    VInt(_) => return Err("Expected bool, got int"),
-                    VBool(b) => b,
-                };
+                let val1 = env.get(v1).unwrap() != 0;
+                let val2 = env.get(v2).unwrap() != 0;
 
                 let dest = instr.dest.as_ref().unwrap();
                 match op.as_str() {
-                    "and" => env.put(dest, VBool(val1 && val2)),
-                    "or" => env.put(dest, VBool(val1 || val2)),
+                    "and" => env.put(dest, (val1 && val2) as i64),
+                    "or" => env.put(dest, (val1 || val2) as i64),
                     _ => return Err("Unknown boolean binop"),
                 };
                 Ok(Action::Next)
@@ -488,14 +463,11 @@ impl<'a> Interpreter<'a> {
             Op::UnOpBool(op) => {
                 let instr_args = &(instr.args).as_ref().unwrap();
                 let v1 = &instr_args[0];
-                let val1 = match env.get(v1).unwrap() {
-                    VInt(_) => return Err("Expected bool, got int"),
-                    VBool(b) => b,
-                };
+                let val1 = env.get(v1).unwrap() != 0;
 
                 let dest = instr.dest.as_ref().unwrap();
                 match op.as_str() {
-                    "not" => env.put(dest, VBool(!val1)),
+                    "not" => env.put(dest, (!val1) as i64),
                     _ => return Err("Unknown unop"),
                 };
                 Ok(Action::Next)
@@ -504,10 +476,7 @@ impl<'a> Interpreter<'a> {
             Op::Print => {
                 let instr_args = &(instr.args).as_ref().unwrap();
                 for arg in *instr_args {
-                    match env.get(&arg).unwrap() {
-                        VInt(v) => print!("{} ", v),
-                        VBool(b) => print!("{} ", b),
-                    };
+                    print!("{} ", env.get(&arg).unwrap());
                 }
                 println!();
                 Ok(Action::Next)
@@ -521,10 +490,7 @@ impl<'a> Interpreter<'a> {
             Op::Br => {
                 let instr_args = &(instr.args).as_ref().unwrap();
                 let v1 = &instr_args[0];
-                let val = match env.get(v1).unwrap() {
-                    VInt(_) => return Err("Expected bool in br, got int"),
-                    VBool(b) => b,
-                };
+                let val = env.get(v1).unwrap() != 0;
                 if val {
                     Ok(Action::Jump(&instr_args[1]))
                 } else {
@@ -573,13 +539,9 @@ impl<'a> Interpreter<'a> {
                 let func_idx = self.index_map.get(name).unwrap().clone();
                 let mut args = Vec::new();
                 for arg in &instr_args[1..] {
-                    let a = match env.get(&arg).unwrap() {
-                        VInt(v) => v,
-                        VBool(b) => b as i64
-                    };
-                    args.push(a);
+                    args.push(env.get(&arg).unwrap());
                 }
-                self.handle_call(func_idx, Vec::new());
+                self.handle_call(func_idx, args);
                 Ok(Action::Next)
             }
 

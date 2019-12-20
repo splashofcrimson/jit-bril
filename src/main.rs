@@ -11,6 +11,7 @@ use std::{
 
 mod compiler;
 mod jit;
+mod interpreter;
 mod program;
 
 fn main() {

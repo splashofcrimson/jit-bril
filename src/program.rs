@@ -5,13 +5,6 @@ use std::fs::File;
 use std::io::BufReader;
 
 #[derive(Clone, Deserialize, Debug, Serialize)]
-#[serde(untagged)]
-pub enum InstrType {
-    VInt(i64),
-    VBool(bool),
-}
-
-#[derive(Clone, Deserialize, Debug, Serialize)]
 #[serde(from = "String")]
 pub enum OpCode {
     BinOp(String),
@@ -56,7 +49,7 @@ pub struct Instruction {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub op: Option<OpCode>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub value: Option<InstrType>,
+    pub value: Option<i64>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub r#type: Option<String>,
 }

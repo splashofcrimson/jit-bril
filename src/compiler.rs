@@ -171,24 +171,12 @@ impl Compiler {
                 }
                 Some(OpCode::Const) => {
                     if let Some(dest) = &inst.dest {
-                        match inst.value.as_ref().unwrap() {
-                            InstrType::VInt(value) => {
-                                if let Some(&d) = var_offsets.get(dest) {
-                                    dynasm!(self.asm
-                                        ; mov rax, QWORD *value
-                                        ; mov [rbp - d], rax
-                                    );
-                                }
-                            }
-                            InstrType::VBool(value) => {
-                                let value_int = *value as i32;
-                                if let Some(&d) = var_offsets.get(dest) {
-                                    dynasm!(self.asm
-                                        ; mov rax, value_int
-                                        ; mov [rbp - d], rax
-                                    );
-                                }
-                            }
+                        if let Some(&d) = var_offsets.get(dest) {
+                            let value = inst.value.as_ref().unwrap();
+                            dynasm!(self.asm
+                                ; mov rax, QWORD *value
+                                ; mov [rbp - d], rax
+                            );
                         }
                     }
                 }
