@@ -1,19 +1,19 @@
-use fnv::FnvHashMap;
 use super::program::InstrType::*;
 use super::program::*;
+use fnv::FnvHashMap;
 
 static RETURN_VAR: &'static str = "_ rho";
 
 type Op = OpCode;
 
 pub struct Env<'a> {
-    env: FnvHashMap<&'a str, InstrType>
+    env: FnvHashMap<&'a str, InstrType>,
 }
 
 impl<'a> Env<'a> {
     pub fn new() -> Env<'a> {
         Env {
-            env: Default::default()
+            env: FnvHashMap::default(),
         }
     }
 
