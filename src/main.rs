@@ -302,10 +302,6 @@ fn main() {
     let args: Vec<String> = env::args().collect();
     println!("{:?}", args);
 
-    if (args.len() != 2) {
-        eprintln!("Error: missing evaluation mode");
-    }
-
     let mut buffer = String::new();
     let stdin = io::stdin();
     let mut handle = stdin.lock();
@@ -319,13 +315,19 @@ fn main() {
         }
     };
 
-    let mode = &args[1];
+    let mut mode = "";
 
-    if (mode == "interp") {
+    if args.len() == 1 {
+        mode = "jit";
+    } else {
+        let mode = &args[1];
+    }
+
+    if mode == "interp" {
         let interpreter = Interpreter::new(bril_ir);
         interpreter.eval_program();
     }
-    else if (mode == "jit") {
+    else if mode == "jit" {
         let mut bril_program = BrilProgram::new(bril_ir);
         let main_idx: i64 = *bril_program.index_map.get("main").unwrap();
         bril_program.compile_and_run(main_idx);
