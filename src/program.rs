@@ -1,5 +1,9 @@
 use serde::{Deserialize, Serialize};
 
+use std::error::Error;
+use std::fs::File;
+use std::io::BufReader;
+
 #[derive(Clone, Deserialize, Debug, Serialize)]
 #[serde(untagged)]
 pub enum InstrType {
@@ -71,7 +75,19 @@ impl From<String> for OpCode {
       "id" => OpCode::Id,
       "print" => OpCode::Print,
       "call" => OpCode::Call,
-      _ => panic!("Unknown instruction")
+      _ => {
+        println!("Unknown instruction, treating as NOP");
+        OpCode::Nop
+      }
     }
   }
+}
+
+
+pub fn read_json(file_name: &str) -> Result<Program, Box<dyn Error>> {
+  let prog_file = File::open(file_name)?;
+  let prog_reader = BufReader::new(prog_file);
+  let prog_json = serde_json::from_reader(prog_reader)?;
+
+  Ok(prog_json)
 }

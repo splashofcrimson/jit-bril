@@ -9,7 +9,7 @@ use program::*;
 use interpreter::Interpreter;
 
 use std::collections::HashMap;
-use std::{mem, process, io::{self, Read}};
+use std::{env, mem, process};
 
 mod program;
 mod interpreter;
@@ -299,11 +299,12 @@ fn get_dyn_label(
 }
 
 fn main() {
-    let mut buffer = String::new();
-    let stdin = io::stdin();
-    let mut handle = stdin.lock();
-    let _ = handle.read_to_string(&mut buffer);
-    let bril_ir = match serde_json::from_str(&buffer) {
+    let args: Vec<String> = env::args().collect();
+    if args.len() != 2 {
+        eprintln!("Expected one argument");
+        process::exit(1);
+    }
+    let bril_ir = match program::read_json(&args[1]) {
         Ok(p) => p,
         Err(e) => {
             eprintln!("{}", e);
