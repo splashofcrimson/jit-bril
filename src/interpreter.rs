@@ -504,6 +504,10 @@ impl Interpreter {
             Op::Call => {
                 let name = instr.args.clone().unwrap().get(0).unwrap().to_string();
                 let func_idx = self.index_map.get(&name).unwrap().clone();
+                match self.profile_map.get_mut(&func_idx) {
+                    Some(v) => {*v += 1},
+                    None => { }
+                };
                 self.handle_call(func_idx);
                 Ok(Action::Next)
                 // let args = instr.args.unwrap().get(1..).unwrap().to_vec();
