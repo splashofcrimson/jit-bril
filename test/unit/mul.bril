@@ -1,0 +1,48 @@
+
+
+main {
+    start_1:int = const 4;
+    start_2:int = const 2;
+    val_1:int = mul start_1 start_2;
+    c_2:int = const 4;
+    val_2:int = mul val_1 c_2;
+    c_3:int = const 4;
+    val_3:int = mul val_2 c_3;
+    c_4:int = const 4;
+    val_4:int = mul val_3 c_4;
+    c_5:int = const 5;
+    val_5:int = mul val_4 c_5;
+    c_6:int = const 4;
+    val_6:int = mul val_5 c_6;
+    c_7:int = const 4;
+    val_7:int = mul val_6 c_7;
+    c_8:int = const 2;
+    val_8:int = mul val_7 c_8;
+    c_9:int = const 1;
+    val_9:int = mul val_8 c_9;
+    c_10:int = const 4;
+    val_10:int = mul val_9 c_10;
+    c_11:int = const 2;
+    val_11:int = mul val_10 c_11;
+    c_12:int = const 4;
+    val_12:int = mul val_11 c_12;
+    c_13:int = const 3;
+    val_13:int = mul val_12 c_13;
+    c_14:int = const 4;
+    val_14:int = mul val_13 c_14;
+    c_15:int = const 1;
+    val_15:int = mul val_14 c_15;
+    c_16:int = const 5;
+    val_16:int = mul val_15 c_16;
+    c_17:int = const 5;
+    val_17:int = mul val_16 c_17;
+    c_18:int = const 3;
+    val_18:int = mul val_17 c_18;
+    c_19:int = const 4;
+    val_19:int = mul val_18 c_19;
+    c_20:int = const 1;
+    val_20:int = mul val_19 c_20;
+    c_21:int = const 1;
+    val_21:int = mul val_20 c_21;
+    print val_21;
+}
