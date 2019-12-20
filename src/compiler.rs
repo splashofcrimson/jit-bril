@@ -1,18 +1,18 @@
 extern crate dynasm;
 extern crate dynasmrt;
 
+use super::program::*;
 use dynasm::dynasm;
 use dynasmrt::{DynasmApi, DynasmLabelApi};
-use super::program::*;
 
 use std::collections::HashMap;
 use std::mem;
 
 pub struct Compiler {
     asm: dynasmrt::x64::Assembler,
-    pub index_map: HashMap::<String, i64>,
-    asm_map: HashMap::<i64, AsmProgram>,
-    bril_map: HashMap::<i64, Function>,
+    pub index_map: HashMap<String, i64>,
+    asm_map: HashMap<i64, AsmProgram>,
+    bril_map: HashMap<i64, Function>,
 }
 
 pub struct AsmProgram {
@@ -35,11 +35,11 @@ impl Compiler {
         }
 
         return Compiler {
-            asm: asm, 
+            asm: asm,
             index_map: index_map,
             asm_map: asm_map,
-            bril_map: bril_map
-        }
+            bril_map: bril_map,
+        };
     }
 
     pub fn compile_and_run(&mut self, func_idx: i64) {
@@ -99,16 +99,34 @@ impl Compiler {
                         ) {
                             dynasm!(self.asm ; mov rax, [rbp - a]);
                             match op.as_ref() {
-                                "add" => { dynasm!(self.asm ; add rax, [rbp - b]); }
-                                "sub" => { dynasm!(self.asm ; sub rax, [rbp - b]); }
-                                "mul" => { dynasm!(self.asm ; imul rax, [rbp - b]); }
-                                "div" => { dynasm!(self.asm ; cqo ; idiv QWORD [rbp - b]); }
-                                "eq" => { dynasm!(self.asm ; cmp rax, [rbp - b] ; sete al ; movzx rax, al); }
-                                "lt" => { dynasm!(self.asm ; cmp rax, [rbp - b] ; setl al ; movzx rax, al); }
-                                "gt" => { dynasm!(self.asm ; cmp rax, [rbp - b] ; setg al ; movzx rax, al); }
-                                "le" => { dynasm!(self.asm ; cmp rax, [rbp - b] ; setle al ; movzx rax, al); }
-                                "ge" => { dynasm!(self.asm ; cmp rax, [rbp - b] ; setge al ; movzx rax, al); }
-                                _ => { }
+                                "add" => {
+                                    dynasm!(self.asm ; add rax, [rbp - b]);
+                                }
+                                "sub" => {
+                                    dynasm!(self.asm ; sub rax, [rbp - b]);
+                                }
+                                "mul" => {
+                                    dynasm!(self.asm ; imul rax, [rbp - b]);
+                                }
+                                "div" => {
+                                    dynasm!(self.asm ; cqo ; idiv QWORD [rbp - b]);
+                                }
+                                "eq" => {
+                                    dynasm!(self.asm ; cmp rax, [rbp - b] ; sete al ; movzx rax, al);
+                                }
+                                "lt" => {
+                                    dynasm!(self.asm ; cmp rax, [rbp - b] ; setl al ; movzx rax, al);
+                                }
+                                "gt" => {
+                                    dynasm!(self.asm ; cmp rax, [rbp - b] ; setg al ; movzx rax, al);
+                                }
+                                "le" => {
+                                    dynasm!(self.asm ; cmp rax, [rbp - b] ; setle al ; movzx rax, al);
+                                }
+                                "ge" => {
+                                    dynasm!(self.asm ; cmp rax, [rbp - b] ; setge al ; movzx rax, al);
+                                }
+                                _ => {}
                             }
                             dynasm!(self.asm ; mov [rbp - d], rax);
                         }
@@ -120,12 +138,16 @@ impl Compiler {
                             var_offsets.get(&args[0]),
                             var_offsets.get(&args[1]),
                             var_offsets.get(dest),
-                         ) {
+                        ) {
                             dynasm!(self.asm ; mov rax, [rbp - a]);
                             match op.as_ref() {
-                                "and" => { dynasm!(self.asm ; and rax, [rbp - b]); }
-                                "or" => { dynasm!(self.asm ; or rax, [rbp - b]); }
-                                _ => { }
+                                "and" => {
+                                    dynasm!(self.asm ; and rax, [rbp - b]);
+                                }
+                                "or" => {
+                                    dynasm!(self.asm ; or rax, [rbp - b]);
+                                }
+                                _ => {}
                             }
                             dynasm!(self.asm ; mov [rbp - d], rax);
                         }
@@ -133,14 +155,15 @@ impl Compiler {
                 }
                 Some(OpCode::UnOpBool(op)) => {
                     if let (Some(args), Some(dest)) = (&inst.args, &inst.dest) {
-                        if let (Some(&a), Some(&d)) = (
-                            var_offsets.get(&args[0]),
-                            var_offsets.get(dest),
-                        ) {
+                        if let (Some(&a), Some(&d)) =
+                            (var_offsets.get(&args[0]), var_offsets.get(dest))
+                        {
                             dynasm!(self.asm ; mov rax, [rbp - a]);
                             match op.as_ref() {
-                                "not" => { dynasm!(self.asm ; xor rax, 1); }
-                                _ => { }
+                                "not" => {
+                                    dynasm!(self.asm ; xor rax, 1);
+                                }
+                                _ => {}
                             }
                             dynasm!(self.asm ; mov [rbp - d], rax);
                         }
@@ -165,14 +188,14 @@ impl Compiler {
                                         ; mov [rbp - d], rax
                                     );
                                 }
-                            },
+                            }
                         }
                     }
                 }
                 Some(OpCode::Call) => {
                     if let Some(args) = &inst.args {
                         dynasm!(self.asm
-                            ; mov rax, QWORD Compiler::compile_and_run as _ 
+                            ; mov rax, QWORD Compiler::compile_and_run as _
                             ; mov rdi, [rbp - 8]
                             ; mov rsi, QWORD *self.index_map.get(&args[0]).unwrap()
                             ; call rax
@@ -186,9 +209,13 @@ impl Compiler {
                                 dynasm!(self.asm ; mov rdi, [rbp - a]);
                                 if let Some(&inst_type) = var_types.get(arg).as_ref() {
                                     match inst_type.as_ref() {
-                                        "int" => { dynasm!(self.asm ; mov rax, QWORD print_int as _); }
-                                        "bool" => { dynasm!(self.asm ; mov rax, QWORD print_bool as _); }
-                                        _ => { }
+                                        "int" => {
+                                            dynasm!(self.asm ; mov rax, QWORD print_int as _);
+                                        }
+                                        "bool" => {
+                                            dynasm!(self.asm ; mov rax, QWORD print_bool as _);
+                                        }
+                                        _ => {}
                                     }
                                 }
                                 dynasm!(self.asm ; call rax);
@@ -212,8 +239,10 @@ impl Compiler {
                 Some(OpCode::Br) => {
                     if let Some(args) = &inst.args {
                         if let Some(&b) = var_offsets.get(&args[0]) {
-                            let dyn_label_true = get_dyn_label(&mut self.asm, &mut labels, &args[1]);
-                            let dyn_label_false = get_dyn_label(&mut self.asm, &mut labels, &args[2]);
+                            let dyn_label_true =
+                                get_dyn_label(&mut self.asm, &mut labels, &args[1]);
+                            let dyn_label_false =
+                                get_dyn_label(&mut self.asm, &mut labels, &args[2]);
                             dynasm!(self.asm
                                 ; test [rbp - b], 1
                                 ; jne =>dyn_label_true
@@ -221,8 +250,6 @@ impl Compiler {
                             );
                         }
                     }
-
-
                 }
                 Some(OpCode::Ret) => {
                     // epilogue
@@ -234,10 +261,9 @@ impl Compiler {
                 }
                 Some(OpCode::Id) => {
                     if let (Some(args), Some(dest)) = (&inst.args, &inst.dest) {
-                        if let (Some(&a), Some(&d)) = (
-                            var_offsets.get(&args[0]),
-                            var_offsets.get(dest),
-                        ) {
+                        if let (Some(&a), Some(&d)) =
+                            (var_offsets.get(&args[0]), var_offsets.get(dest))
+                        {
                             dynasm!(self.asm ; mov rax, [rbp - a]);
                             dynasm!(self.asm ; mov [rbp - d], rax);
                         }
@@ -281,9 +307,10 @@ fn print_newline() {
 }
 
 fn get_dyn_label(
-        asm: &mut dynasmrt::x64::Assembler,
-        labels: &mut HashMap::<String, dynasmrt::DynamicLabel>,
-        label: &str) -> dynasmrt::DynamicLabel {
+    asm: &mut dynasmrt::x64::Assembler,
+    labels: &mut HashMap<String, dynasmrt::DynamicLabel>,
+    label: &str,
+) -> dynasmrt::DynamicLabel {
     if let Some(&dyn_label) = labels.get(label) {
         return dyn_label;
     } else {

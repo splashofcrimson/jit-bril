@@ -15,3 +15,6 @@ dynasm = "0.5"
 dynasmrt = "0.5"
 fnv = "1.0.3"
 
+[profile.release]
+debug = true
+
