@@ -3,24 +3,26 @@ use std::collections::HashMap;
 use super::program::InstrType::*;
 use super::program::*;
 
+static return_var: &'static str = "_ rho";
+
 type Op = OpCode;
 
-pub struct Env {
-    env: HashMap<String, InstrType>,
+pub struct Env<'a> {
+    env: HashMap<&'a str, InstrType>,
 }
 
-impl Env {
-    pub fn new() -> Env {
+impl<'a> Env<'a> {
+    pub fn new() -> Env<'a> {
         Env {
-            env: HashMap::<String, InstrType>::new(),
+            env: HashMap::new(),
         }
     }
 
-    pub fn get(&mut self, var_name: String) -> Option<InstrType> {
+    pub fn get(&mut self, var_name: &'a str) -> Option<InstrType> {
         self.env.get(&var_name).cloned()
     }
 
-    pub fn put(&mut self, var_name: String, val: InstrType) {
+    pub fn put(&mut self, var_name: &'a str, val: InstrType) {
         self.env.insert(var_name, val);
     }
 }
@@ -31,12 +33,12 @@ pub enum Action {
     Return,
 }
 
-pub struct Interpreter {
-    program: Program,
+pub struct Interpreter<'a> {
+    program: &'a Program,
 }
 
-impl Interpreter {
-    pub fn new(bril_ir: Program) -> Interpreter {
+impl<'a> Interpreter<'a> {
+    pub fn new(bril_ir: &'a Program) -> Interpreter<'a> {
         Interpreter { program: bril_ir }
     }
 
@@ -51,8 +53,9 @@ impl Interpreter {
 
     pub fn find_label(func: &Function, label: String) -> Option<usize> {
         let mut i = 0;
+        let some_label = Some(label);
         while i < func.instrs.len() {
-            if func.instrs.get(i).unwrap().label == Some(label.to_string()) {
+            if func.instrs.get(i).unwrap().label == some_label {
                 break;
             }
             i += 1;
@@ -64,7 +67,7 @@ impl Interpreter {
         }
     }
 
-    pub fn eval_func(&self, func: &Function, env: &mut Env) -> bool {
+    pub fn eval_func(&self, func: &'a Function, env: &mut Env<'a>) -> bool {
         let mut i = 0;
         while i < func.instrs.len() {
             let instr = &func.instrs[i];
@@ -90,11 +93,11 @@ impl Interpreter {
         true
     }
 
-    pub fn eval_instr(&self, instr: &Instruction, env: &mut Env) -> Result<Action, &str> {
+    pub fn eval_instr(&self, instr: &'a Instruction, env: &mut Env<'a>) -> Result<Action, &str> {
         match instr.op.as_ref().unwrap_or(&Op::Nop) {
             Op::Const => {
                 env.put(
-                    instr.dest.as_ref().unwrap().to_string(),
+                    instr.dest.as_ref().unwrap(),
                     instr.value.as_ref().unwrap().clone(),
                 );
                 Ok(Action::Next)
@@ -102,16 +105,16 @@ impl Interpreter {
 
             Op::Id => {
                 let instr_args = &(instr.args).as_ref().unwrap();
-                let src = instr_args[0].to_string();
+                let src = &instr_args[0];
                 let val = env.get(src).unwrap();
-                env.put(instr.dest.as_ref().unwrap().to_string(), val);
+                env.put(instr.dest.as_ref().unwrap(), val);
                 Ok(Action::Next)
             }
 
             Op::BinOp(op) => {
                 let instr_args = &(instr.args).as_ref().unwrap();
-                let v1 = instr_args[0].to_string();
-                let v2 = instr_args[1].to_string();
+                let v1 = &instr_args[0];
+                let v2 = &instr_args[1];
                 let val1 = match env.get(v1).unwrap() {
                     VInt(v) => v,
                     VBool(_) => return Err("Expected int, got bool"),
@@ -121,7 +124,7 @@ impl Interpreter {
                     VBool(_) => return Err("Expected int, got bool"),
                 };
 
-                let dest = instr.dest.as_ref().unwrap().to_string();
+                let dest = instr.dest.as_ref().unwrap();
                 match op.as_str() {
                     "add" => env.put(dest, VInt(val1 + val2)),
                     "mul" => env.put(dest, VInt(val1 * val2)),
@@ -139,8 +142,8 @@ impl Interpreter {
 
             Op::BinOpBool(op) => {
                 let instr_args = &(instr.args).as_ref().unwrap();
-                let v1 = instr_args[0].to_string();
-                let v2 = instr_args[1].to_string();
+                let v1 = &instr_args[0];
+                let v2 = &instr_args[1];
                 let val1 = match env.get(v1).unwrap() {
                     VInt(_) => return Err("Expected bool, got int"),
                     VBool(b) => b,
@@ -150,7 +153,7 @@ impl Interpreter {
                     VBool(b) => b,
                 };
 
-                let dest = instr.dest.as_ref().unwrap().to_string();
+                let dest = instr.dest.as_ref().unwrap();
                 match op.as_str() {
                     "and" => env.put(dest, VBool(val1 && val2)),
                     "or" => env.put(dest, VBool(val1 || val2)),
@@ -161,13 +164,13 @@ impl Interpreter {
 
             Op::UnOpBool(op) => {
                 let instr_args = &(instr.args).as_ref().unwrap();
-                let v1 = instr_args[0].to_string();
+                let v1 = &instr_args[0];
                 let val1 = match env.get(v1).unwrap() {
                     VInt(_) => return Err("Expected bool, got int"),
                     VBool(b) => b,
                 };
 
-                let dest = instr.dest.as_ref().unwrap().to_string();
+                let dest = instr.dest.as_ref().unwrap();
                 match op.as_str() {
                     "not" => env.put(dest, VBool(!val1)),
                     _ => return Err("Unknown unop"),
@@ -178,7 +181,7 @@ impl Interpreter {
             Op::Print => {
                 let instr_args = &(instr.args).as_ref().unwrap();
                 for arg in *instr_args {
-                    match env.get(arg.to_string()).unwrap() {
+                    match env.get(&arg).unwrap() {
                         VInt(v) => print!("{} ", v),
                         VBool(b) => print!("{} ", b),
                     };
@@ -188,21 +191,21 @@ impl Interpreter {
             }
 
             Op::Jmp => {
-                let label = instr.args.as_ref().unwrap()[0].to_string();
+                let label = instr.args.as_ref().unwrap()[0].to_owned();
                 Ok(Action::Jump(label))
             }
 
             Op::Br => {
                 let instr_args = &(instr.args).as_ref().unwrap();
-                let v1 = instr_args[0].to_string();
+                let v1 = &instr_args[0];
                 let val = match env.get(v1).unwrap() {
                     VInt(_) => return Err("Expected bool in br, got int"),
                     VBool(b) => b,
                 };
                 if val {
-                    Ok(Action::Jump(instr_args[1].to_string()))
+                    Ok(Action::Jump(instr_args[1].to_owned()))
                 } else {
-                    Ok(Action::Jump(instr_args[2].to_string()))
+                    Ok(Action::Jump(instr_args[2].to_owned()))
                 }
             }
 
@@ -212,13 +215,13 @@ impl Interpreter {
                 let new_env = &mut Env::new();
                 let mut called = false;
                 for func in &self.program.functions {
-                    if func.name == name.to_string() {
+                    if func.name == *name {
                         match &func.args {
                             Some(params) => {
                                 for i in 0..params.len() {
-                                    let name = params.get(i).unwrap().name.to_string();
+                                    let name = &params.get(i).unwrap().name;
                                     let val = &instr_args[i + 1];
-                                    new_env.put(name, env.get(val.to_string()).unwrap());
+                                    new_env.put(&name, env.get(&val).unwrap());
                                 }
                             }
 
@@ -234,7 +237,7 @@ impl Interpreter {
                 if called {
                     match instr.dest.as_ref() {
                         Some(dest) => {
-                            env.put(dest.to_string(), new_env.get("_ rho".to_string()).unwrap());
+                            env.put(dest, new_env.get("_ rho").unwrap());
                         }
 
                         None => (),
@@ -248,8 +251,8 @@ impl Interpreter {
             Op::Ret => {
                 let instr_args = &(instr.args).as_ref().unwrap();
                 if instr_args.len() > 0 {
-                    let return_val = env.get(instr_args[0].to_string());
-                    env.put("_ rho".to_string(), return_val.unwrap());
+                    let return_val = env.get(&instr_args[0]);
+                    env.put(&return_var, return_val.unwrap());
                 }
                 Ok(Action::Return)
             }

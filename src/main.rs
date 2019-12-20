@@ -316,7 +316,7 @@ fn main() {
     let mode = &args[1];
 
     if mode == "interp" {
-        let interpreter = Interpreter::new(bril_ir);
+        let interpreter = Interpreter::new(&bril_ir);
         interpreter.eval_program();
     }
     else if mode == "jit" {
