@@ -13,7 +13,7 @@ pub struct Env<'a> {
 impl<'a> Env<'a> {
     pub fn new() -> Env<'a> {
         Env {
-            env: FnvHashMap::default()
+            env: Default::default()
         }
     }
 
@@ -26,9 +26,9 @@ impl<'a> Env<'a> {
     }
 }
 
-pub enum Action {
+pub enum Action<'a> {
     Next,
-    Jump(String),
+    Jump(&'a str),
     Return,
 }
 
@@ -50,9 +50,9 @@ impl<'a> Interpreter<'a> {
         }
     }
 
-    pub fn find_label(func: &Function, label: String) -> Option<usize> {
+    pub fn find_label(func: &Function, label: &str) -> Option<usize> {
         let mut i = 0;
-        let some_label = Some(label);
+        let some_label = Some(label.to_string());
         while i < func.instrs.len() {
             if func.instrs.get(i).unwrap().label == some_label {
                 break;
@@ -190,8 +190,8 @@ impl<'a> Interpreter<'a> {
             }
 
             Op::Jmp => {
-                let label = instr.args.as_ref().unwrap()[0].to_owned();
-                Ok(Action::Jump(label))
+                let label = &instr.args.as_ref().unwrap()[0];
+                Ok(Action::Jump(&label))
             }
 
             Op::Br => {
@@ -202,9 +202,9 @@ impl<'a> Interpreter<'a> {
                     VBool(b) => b,
                 };
                 if val {
-                    Ok(Action::Jump(instr_args[1].to_owned()))
+                    Ok(Action::Jump(&instr_args[1]))
                 } else {
-                    Ok(Action::Jump(instr_args[2].to_owned()))
+                    Ok(Action::Jump(&instr_args[2]))
                 }
             }
 
