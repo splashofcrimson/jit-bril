@@ -146,11 +146,21 @@ impl<'a> Interpreter<'a> {
             ; mov [rbp - 8], rdi
         );
 
-        let num_args: i64 = if let Some(args) = &bril_func.args {
+        let num_args: i32 = if let Some(args) = &bril_func.args {
             args.len() as _
         } else {
             0
         };
+
+        dynasm!(self.asm ; mov rsi, [rsi]);
+
+        for i in 0..num_args {
+            dynasm!(self.asm
+                ; mov rax, [rsi + 8*i]
+                ; mov [rbp - 8*(i + 2)], rax
+            );
+        }
+
 
         for inst in &bril_func.instrs {
             match &inst.op {
