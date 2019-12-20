@@ -315,12 +315,12 @@ fn main() {
         }
     };
 
-    let mut mode = "";
+    let mode;
 
     if args.len() == 1 {
         mode = "jit";
     } else {
-        let mode = &args[1];
+        mode = &args[1];
     }
 
     if mode == "interp" {
