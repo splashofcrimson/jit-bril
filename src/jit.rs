@@ -84,8 +84,8 @@ impl<'a> Interpreter<'a> {
     pub fn handle_call(&mut self, func_idx: i64, args: Vec<i64>) -> Option<i64> {
         println!("Received args {:?}", args);
         if let Some(func_asm) = self.asm_map.get(&func_idx) {
-            let func: fn(&Interpreter) -> Option<i64> = unsafe { mem::transmute(func_asm.code.ptr(func_asm.start)) };
-            let x = func(&self);
+            let func: fn(&Interpreter, Vec<i64>) -> Option<i64> = unsafe { mem::transmute(func_asm.code.ptr(func_asm.start)) };
+            let x = func(&self, args);
             println!("pre-compiled func returned {:?}", x);
             return x;
         } else {
@@ -93,9 +93,9 @@ impl<'a> Interpreter<'a> {
                 if true {
                     let func_bril = self.bril_map.remove(&func_idx).unwrap();
                     let func_asm = self.compile(&func_bril);
-                    let func: fn(&Interpreter) -> Option<i64> = unsafe { mem::transmute(func_asm.code.ptr(func_asm.start)) };
+                    let func: fn(&Interpreter, Vec<i64>) -> Option<i64> = unsafe { mem::transmute(func_asm.code.ptr(func_asm.start)) };
                     self.asm_map.insert(func_idx, func_asm);
-                    let x = func(&self);
+                    let x = func(&self, args);
                     println!("func returned {:?}", x);
                     return x;
                 }
@@ -113,6 +113,12 @@ impl<'a> Interpreter<'a> {
         let mut labels = HashMap::<String, dynasmrt::DynamicLabel>::new();
         let mut num_vars = 2;
 
+        if let Some(args) = &bril_func.args {
+            for arg in args {
+                var_offsets.insert(arg.name.to_string(), 8 * num_vars);
+                num_vars += 1;
+            }
+        }
         for inst in &bril_func.instrs {
             if let Some(dest) = &inst.dest {
                 if !var_offsets.contains_key(dest) {
@@ -139,6 +145,12 @@ impl<'a> Interpreter<'a> {
             ; sub rsp, num_bytes
             ; mov [rbp - 8], rdi
         );
+
+        let num_args: i64 = if let Some(args) = &bril_func.args {
+            args.len() as _
+        } else {
+            0
+        };
 
         for inst in &bril_func.instrs {
             match &inst.op {
@@ -266,14 +278,16 @@ impl<'a> Interpreter<'a> {
                     if let Some(args) = &inst.args {
                         for arg in args {
                             if let Some(&a) = var_offsets.get(arg) {
-                                dynasm!(self.asm ; mov rdi, [rbp - a]);
-                                if let Some(&inst_type) = var_types.get(arg).as_ref() {
-                                    match inst_type.as_ref() {
-                                        "int" => { dynasm!(self.asm ; mov rax, QWORD print_int as _); }
-                                        "bool" => { dynasm!(self.asm ; mov rax, QWORD print_bool as _); }
-                                        _ => { }
-                                    }
-                                }
+                                dynasm!(self.asm
+                                    ; mov rdi, [rbp - a]
+                                    ; mov rax, QWORD print_int as _);
+                                // if let Some(&inst_type) = var_types.get(arg).as_ref() {
+                                //     match inst_type.as_ref() {
+                                //         "int" => { dynasm!(self.asm ; mov rax, QWORD print_int as _); }
+                                //         "bool" => { dynasm!(self.asm ; mov rax, QWORD print_bool as _); }
+                                //         _ => { }
+                                //     }
+                                // }
                                 dynasm!(self.asm ; call rax);
                             }
                         }
@@ -304,24 +318,21 @@ impl<'a> Interpreter<'a> {
                             );
                         }
                     }
-
-
                 }
                 Some(OpCode::Ret) => {
                     if let Some(args) = &inst.args {
-                        if let Some(&offset) = var_offsets.get(&args[0]) {
-                            dynasm!(self.asm
-                                ; mov rax, 1
-                                ; mov rdx, [rbp - offset]
-                            );
+                        if !args.is_empty() {
+                                let offset = var_offsets.get(&args[0]).unwrap();
+                                dynasm!(self.asm
+                                    ; mov rax, 1
+                                    ; mov rdx, [rbp - offset]
+                                );
                         } else {
-                            panic!("couldn't find var offset");
+                            dynasm!(self.asm
+                                ; mov rax, 0
+                                ; mov rdx, 0
+                            );
                         }
-                    } else {
-                        dynasm!(self.asm
-                            ; mov rax, 0
-                            ; mov rdx, 0
-                        );
                     }
                     dynasm!(self.asm
                         ; mov rsp, rbp
@@ -365,13 +376,7 @@ impl<'a> Interpreter<'a> {
     }
 
     pub fn eval_program(&mut self) {
-        let env = &mut Env::new();
-        for func in &self.program.functions {
-            if func.name == "main" {
-                self.handle_call(1, Vec::new());
-                // self.eval_func(&func, env);
-            }
-        }
+        self.handle_call(*self.index_map.get("main").unwrap(), Vec::new());
     }
 
     pub fn find_label(func: &Function, label: &str) -> Option<usize> {
