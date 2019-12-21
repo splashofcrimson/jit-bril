@@ -94,7 +94,7 @@ impl<'a> Interpreter<'a> {
         let func_bril = self.bril_map.remove(&func_idx).unwrap();
         let (func_asm, start) = self.compile(&func_bril, Some(env), Some(label));
         let func: fn(&Interpreter, Vec<i64>) -> Option<i64> =
-            unsafe { mem::transmute(func_asm.code.ptr(func_asm.start)) };
+            unsafe { mem::transmute(func_asm.code.ptr(start)) };
         self.asm_map.insert(func_idx, func_asm);
         return func(&self, Vec::new());
     }
@@ -540,7 +540,6 @@ impl<'a> Interpreter<'a> {
                 if let Some(label_profile_data) = label_profile_map.get_mut::<str>(&label) {
                     *label_profile_data += 1;
                 };
-                println!("at label {:?}", label);
                 if let Some(label_profile_data) = label_profile_map.get::<str>(label) {
                     if *label_profile_data >= 1 {
                         let func_idx = self.index_map.get::<str>(&func.name).unwrap();
