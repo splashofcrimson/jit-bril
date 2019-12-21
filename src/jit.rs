@@ -107,7 +107,7 @@ impl<'a> Interpreter<'a> {
         } else {
             if let Some(&func_profile_data) = &self.profile_map.get(&func_idx) {
                 self.profile_map.insert(func_idx, func_profile_data + 1);
-                if func_profile_data > 1 {
+                if true {
                     let func_bril = self.bril_map.remove(&func_idx).unwrap();
                     let (func_asm, start) = self.compile(&func_bril, None, None);
                     let func: fn(&Interpreter, Vec<i64>) -> Option<i64> =
@@ -335,7 +335,7 @@ impl<'a> Interpreter<'a> {
                     if let Some(args) = &inst.args {
                         let name = &args[0];
                         let num_args = &args.len() - 1;
-                        let num_bytes = 16 * ((num_args + 1) / 2) as i32;
+                        let num_bytes = 256 + 16 * ((num_args + 1) / 2) as i32;
                         dynasm!(self.asm
                             ; sub rsp, num_bytes
                             ; mov rdi, rsp
