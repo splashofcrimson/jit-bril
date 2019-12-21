@@ -66,7 +66,7 @@ impl<'a> Interpreter<'a> {
         for fun in &bril_ir.functions {
             bril_map.insert(i, fun.clone());
             index_map.insert(fun.name.clone(), i);
-            profile_map.insert(i, i);
+            profile_map.insert(i, 0);
             i += 1;
         }
 
@@ -83,23 +83,26 @@ impl<'a> Interpreter<'a> {
     pub fn handle_call(&mut self, func_idx: i64, args: Vec<i64>) -> Option<i64> {
         println!("Received args {:?}", args);
         if let Some(func_asm) = self.asm_map.get(&func_idx) {
+            println!("Function {} is already compiled, running", func_idx);
             let func: fn(&Interpreter, Vec<i64>) -> Option<i64> =
                 unsafe { mem::transmute(func_asm.code.ptr(func_asm.start)) };
             let x = func(&self, args);
             println!("pre-compiled func returned {:?}", x);
             return x;
         } else {
-            if true {
-                if true {
+            if let Some(&func_profile_data) = &self.profile_map.get(&func_idx) {
+                self.profile_map.insert(func_idx, func_profile_data + 1);
+                if func_profile_data > 1 {
                     let func_bril = self.bril_map.remove(&func_idx).unwrap();
+                    println!("Compiling function {}", func_idx);
                     let func_asm = self.compile(&func_bril);
                     let func: fn(&Interpreter, Vec<i64>) -> Option<i64> =
                         unsafe { mem::transmute(func_asm.code.ptr(func_asm.start)) };
                     self.asm_map.insert(func_idx, func_asm);
                     let x = func(&self, args);
-                    println!("func returned {:?}", x);
                     return x;
                 } else {
+                    println!("Interpreting function {}", func_idx);
                     let func_bril = self.bril_map.get(&func_idx).unwrap();
                     let name = &func_bril.name;
                     let new_env = &mut Env::new();
@@ -188,7 +191,6 @@ impl<'a> Interpreter<'a> {
                 ; mov [rbp - 8*(i + 2)], rax
             );
         }
-
 
         for inst in &bril_func.instrs {
             match &inst.op {
