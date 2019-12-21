@@ -16,7 +16,7 @@ mod program;
 
 fn main() {
     let args: Vec<String> = env::args().collect();
-    if args.len() <= 3 {
+    if args.len() < 3 {
         eprintln!("Expected at least two arguments");
         process::exit(1);
     }
