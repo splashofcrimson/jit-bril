@@ -50,7 +50,7 @@ pub struct Interpreter<'a> {
     asm_map: HashMap<i64, AsmProgram>,
     bril_map: HashMap<i64, Function>,
     index_map: HashMap<String, i64>,
-    label_map: HashMap<String, HashMap<String, i64>>,
+    label_map: HashMap::<String, HashMap<String, i64>>,
     profile_map: HashMap<i64, i64>,
     program: &'a Program,
 }
@@ -90,6 +90,15 @@ impl<'a> Interpreter<'a> {
         }
     }
 
+    pub fn handle_osr(&mut self, env: &mut Env, func_idx: i64) {
+        let func_bril = self.bril_map.remove(&func_idx).unwrap();
+        let func_asm = self.compile(&func_bril, Some(env));
+        let func: fn(&Interpreter, Vec<i64>) -> Option<i64> =
+            unsafe { mem::transmute(func_asm.code.ptr(func_asm.start)) };
+        self.asm_map.insert(func_idx, func_asm);
+        // let x = func(&self, args);
+    }
+
     pub fn handle_call(&mut self, func_idx: i64, args: Vec<i64>) -> Option<i64> {
         if let Some(func_asm) = self.asm_map.get(&func_idx) {
             let func: fn(&Interpreter, Vec<i64>) -> Option<i64> =
@@ -101,7 +110,7 @@ impl<'a> Interpreter<'a> {
                 self.profile_map.insert(func_idx, func_profile_data + 1);
                 if func_profile_data > 1 {
                     let func_bril = self.bril_map.remove(&func_idx).unwrap();
-                    let func_asm = self.compile(&func_bril);
+                    let func_asm = self.compile(&func_bril, None);
                     let func: fn(&Interpreter, Vec<i64>) -> Option<i64> =
                         unsafe { mem::transmute(func_asm.code.ptr(func_asm.start)) };
                     self.asm_map.insert(func_idx, func_asm);
@@ -143,7 +152,7 @@ impl<'a> Interpreter<'a> {
         None
     }
 
-    pub fn compile(&mut self, bril_func: &Function) -> AsmProgram {
+    pub fn compile(&mut self, bril_func: &Function, env: Option<&mut Env>) -> AsmProgram {
         let mut var_offsets = HashMap::<String, i32>::new();
         let mut var_types = HashMap::<String, String>::new();
         let mut labels = HashMap::<String, dynasmrt::DynamicLabel>::new();
@@ -196,6 +205,17 @@ impl<'a> Interpreter<'a> {
                 ; mov [rbp - 8*(i + 2)], rax
             );
         }
+
+        if let Some(interp_env) = env {
+            for (k, v) in var_offsets.iter() {
+                if let Some(var) = interp_env.get(&k) {
+                    dynasm!(self.asm
+                        ; mov rax, QWORD var   
+                        ; mov [rbp - v], rax
+                    );
+                }
+            }
+        };
 
         for inst in &bril_func.instrs {
             match &inst.op {
@@ -457,7 +477,7 @@ impl<'a> Interpreter<'a> {
         let mut i = 0;
         while i < func.instrs.len() {
             let instr = &func.instrs[i];
-            let action = self.eval_instr(&instr, env);
+            let action = self.eval_instr(&instr, &func, env);
             match action {
                 Ok(Action::Next) => {
                     i += 1;
@@ -470,11 +490,6 @@ impl<'a> Interpreter<'a> {
                         None => {
                             println!("Couldn't find label to jump to");
                             return false;
-                        }
-                    };
-                    if let Some(label_profile_map) = self.label_map.get_mut(&func.name) {
-                        if let Some(label_profile_data) = label_profile_map.get_mut(label) {
-                            *label_profile_data += 1;
                         }
                     };
                 },
@@ -491,8 +506,22 @@ impl<'a> Interpreter<'a> {
     pub fn eval_instr(
         &mut self,
         instr: &'a Instruction,
+        func: &'a Function,
         env: &mut Env<'a>,
     ) -> Result<Action, &str> {
+        if let Some(label) = &instr.label {
+            if let Some(label_profile_map) = self.label_map.get_mut(&func.name) {
+               if let Some(label_profile_data) = label_profile_map.get_mut(label) {
+                   *label_profile_data += 1;
+               };
+               if let Some(label_profile_data) = label_profile_map.get(label) {
+                   if *label_profile_data > 1 {
+                       let func_idx = self.index_map.get(label).unwrap();
+                       self.handle_osr(env, *func_idx);
+                   }
+               }
+            };
+        };
         match instr.op.as_ref().unwrap_or(&Op::Nop) {
             Op::Const => {
                 env.put(
