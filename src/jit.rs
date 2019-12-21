@@ -60,7 +60,7 @@ impl<'a> Interpreter<'a> {
         let asm = dynasmrt::x64::Assembler::new().unwrap();
         let mut index_map = HashMap::<String, i64>::new();
         let mut bril_map = HashMap::<i64, Function>::new();
-        let mut label_map = HashMap::<String, HashMap::<String, i64>>::new();
+        let mut label_map = HashMap::<String, HashMap<String, i64>>::new();
         let mut profile_map = HashMap::<i64, i64>::new();
         let asm_map = HashMap::<i64, AsmProgram>::new();
 
@@ -144,26 +144,26 @@ impl<'a> Interpreter<'a> {
     }
 
     pub fn compile(&mut self, bril_func: &Function) -> AsmProgram {
-        let mut var_offsets = HashMap::<String, i32>::new();
-        let mut var_types = HashMap::<String, String>::new();
+        let mut var_offsets = HashMap::<&str, i32>::new();
+        let mut var_types = HashMap::<&str, String>::new();
         let mut labels = HashMap::<String, dynasmrt::DynamicLabel>::new();
         let mut num_vars = 2;
 
         if let Some(args) = &bril_func.args {
             for arg in args {
-                var_offsets.insert(arg.name.to_string(), 8 * num_vars);
+                var_offsets.insert(&arg.name, 8 * num_vars);
                 num_vars += 1;
             }
         }
         for inst in &bril_func.instrs {
             if let Some(dest) = &inst.dest {
-                if !var_offsets.contains_key(dest) {
-                    var_offsets.insert(dest.to_string(), 8 * num_vars);
+                if !var_offsets.contains_key::<str>(&dest) {
+                    var_offsets.insert(&dest, 8 * num_vars);
                     num_vars += 1;
                 }
-                if !var_types.contains_key(dest) {
+                if !var_types.contains_key::<str>(&dest) {
                     if let Some(inst_type) = &inst.r#type {
-                        var_types.insert(dest.to_string(), inst_type.to_string());
+                        var_types.insert(&dest, inst_type.to_string());
                     }
                 }
             }
@@ -202,9 +202,9 @@ impl<'a> Interpreter<'a> {
                 Some(OpCode::BinOp(op)) => {
                     if let (Some(args), Some(dest)) = (&inst.args, &inst.dest) {
                         if let (Some(&a), Some(&b), Some(&d)) = (
-                            var_offsets.get(&args[0]),
-                            var_offsets.get(&args[1]),
-                            var_offsets.get(dest),
+                            var_offsets.get::<str>(&args[0]),
+                            var_offsets.get::<str>(&args[1]),
+                            var_offsets.get::<str>(dest),
                         ) {
                             dynasm!(self.asm ; mov rax, [rbp - a]);
                             match op.as_ref() {
@@ -244,9 +244,9 @@ impl<'a> Interpreter<'a> {
                 Some(OpCode::BinOpBool(op)) => {
                     if let (Some(args), Some(dest)) = (&inst.args, &inst.dest) {
                         if let (Some(&a), Some(&b), Some(&d)) = (
-                            var_offsets.get(&args[0]),
-                            var_offsets.get(&args[1]),
-                            var_offsets.get(dest),
+                            var_offsets.get::<str>(&args[0]),
+                            var_offsets.get::<str>(&args[1]),
+                            var_offsets.get::<str>(dest),
                         ) {
                             dynasm!(self.asm ; mov rax, [rbp - a]);
                             match op.as_ref() {
@@ -264,9 +264,10 @@ impl<'a> Interpreter<'a> {
                 }
                 Some(OpCode::UnOpBool(op)) => {
                     if let (Some(args), Some(dest)) = (&inst.args, &inst.dest) {
-                        if let (Some(&a), Some(&d)) =
-                            (var_offsets.get(&args[0]), var_offsets.get(dest))
-                        {
+                        if let (Some(&a), Some(&d)) = (
+                            var_offsets.get::<str>(&args[0]),
+                            var_offsets.get::<str>(dest),
+                        ) {
                             dynasm!(self.asm ; mov rax, [rbp - a]);
                             match op.as_ref() {
                                 "not" => {
@@ -281,7 +282,7 @@ impl<'a> Interpreter<'a> {
                 Some(OpCode::Const) => {
                     if let Some(dest) = &inst.dest {
                         let value = inst.value.as_ref().unwrap();
-                        if let Some(&d) = var_offsets.get(dest) {
+                        if let Some(&d) = var_offsets.get::<str>(dest) {
                             dynasm!(self.asm
                                 ; mov rax, QWORD *value
                                 ; mov [rbp - d], rax
@@ -303,7 +304,7 @@ impl<'a> Interpreter<'a> {
                         );
                         for i in 0..num_args {
                             let var = &args[i + 1];
-                            let value = var_offsets.get(var).unwrap();
+                            let value = var_offsets.get::<str>(var).unwrap();
                             dynasm!(self.asm
                                 ; mov rdi, rsp
                                 ; mov rsi, [rbp - value]
@@ -320,7 +321,7 @@ impl<'a> Interpreter<'a> {
                             ; call rax
                         );
                         if let Some(dest) = &inst.dest {
-                            let value = var_offsets.get(dest).unwrap();
+                            let value = var_offsets.get::<str>(dest).unwrap();
                             dynasm!(self.asm
                                 ; mov [rbp - value], rdx
                             );
@@ -333,7 +334,7 @@ impl<'a> Interpreter<'a> {
                 Some(OpCode::Print) => {
                     if let Some(args) = &inst.args {
                         for arg in args {
-                            if let Some(&a) = var_offsets.get(arg) {
+                            if let Some(&a) = var_offsets.get::<str>(arg) {
                                 dynasm!(self.asm
                                     ; mov rdi, [rbp - a]
                                     ; mov rax, QWORD print_int as _);
@@ -364,7 +365,7 @@ impl<'a> Interpreter<'a> {
                 }
                 Some(OpCode::Br) => {
                     if let Some(args) = &inst.args {
-                        if let Some(&b) = var_offsets.get(&args[0]) {
+                        if let Some(&b) = var_offsets.get::<str>(&args[0]) {
                             let dyn_label_true =
                                 get_dyn_label(&mut self.asm, &mut labels, &args[1]);
                             let dyn_label_false =
@@ -380,7 +381,7 @@ impl<'a> Interpreter<'a> {
                 Some(OpCode::Ret) => {
                     if let Some(args) = &inst.args {
                         if !args.is_empty() {
-                            let offset = var_offsets.get(&args[0]).unwrap();
+                            let offset = var_offsets.get::<str>(&args[0]).unwrap();
                             dynasm!(self.asm
                                 ; mov rax, 1
                                 ; mov rdx, [rbp - offset]
@@ -400,9 +401,10 @@ impl<'a> Interpreter<'a> {
                 }
                 Some(OpCode::Id) => {
                     if let (Some(args), Some(dest)) = (&inst.args, &inst.dest) {
-                        if let (Some(&a), Some(&d)) =
-                            (var_offsets.get(&args[0]), var_offsets.get(dest))
-                        {
+                        if let (Some(&a), Some(&d)) = (
+                            var_offsets.get::<str>(&args[0]),
+                            var_offsets.get::<str>(dest),
+                        ) {
                             dynasm!(self.asm ; mov rax, [rbp - a]);
                             dynasm!(self.asm ; mov [rbp - d], rax);
                         }
@@ -457,7 +459,7 @@ impl<'a> Interpreter<'a> {
         let mut i = 0;
         while i < func.instrs.len() {
             let instr = &func.instrs[i];
-            let action = self.eval_instr(&instr, env);
+            let action = self.eval_instr(instr, env);
             match action {
                 Ok(Action::Next) => {
                     i += 1;
@@ -466,18 +468,20 @@ impl<'a> Interpreter<'a> {
                     match Interpreter::find_label(&func, label) {
                         Some(v) => {
                             i = v;
-                        } 
+                        }
                         None => {
                             println!("Couldn't find label to jump to");
                             return false;
                         }
                     };
                     if let Some(label_profile_map) = self.label_map.get_mut(&func.name) {
-                        if let Some(label_profile_data) = label_profile_map.get_mut(label) {
+                        if let Some(label_profile_data) =
+                            label_profile_map.get_mut(&label.to_string())
+                        {
                             *label_profile_data += 1;
                         }
                     };
-                },
+                }
                 Ok(Action::Return) => break,
                 Err(s) => {
                     println!("{}", s);
