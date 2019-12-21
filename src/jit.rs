@@ -50,6 +50,7 @@ pub struct Interpreter<'a> {
     asm_map: HashMap<i64, AsmProgram>,
     bril_map: HashMap<i64, Function>,
     index_map: HashMap<String, i64>,
+    label_map: HashMap<String, HashMap<String, i64>>,
     profile_map: HashMap<i64, i64>,
     program: &'a Program,
 }
@@ -59,6 +60,7 @@ impl<'a> Interpreter<'a> {
         let asm = dynasmrt::x64::Assembler::new().unwrap();
         let mut index_map = HashMap::<String, i64>::new();
         let mut bril_map = HashMap::<i64, Function>::new();
+        let mut label_map = HashMap::<String, HashMap::<String, i64>>::new();
         let mut profile_map = HashMap::<i64, i64>::new();
         let asm_map = HashMap::<i64, AsmProgram>::new();
 
@@ -67,6 +69,13 @@ impl<'a> Interpreter<'a> {
             bril_map.insert(i, fun.clone());
             index_map.insert(fun.name.clone(), i);
             profile_map.insert(i, 0);
+            for instr in fun.instrs.clone() {
+                let mut label_profile_map = HashMap::<String, i64>::new();
+                if let Some(label) = instr.label {
+                    label_profile_map.insert(label, 0);
+                }
+                label_map.insert(fun.clone().name, label_profile_map);
+            }
             i += 1;
         }
 
@@ -75,6 +84,7 @@ impl<'a> Interpreter<'a> {
             asm_map: asm_map,
             bril_map: bril_map,
             index_map: index_map,
+            label_map: label_map,
             profile_map: profile_map,
             program: bril_ir,
         }
@@ -447,17 +457,26 @@ impl<'a> Interpreter<'a> {
         let mut i = 0;
         while i < func.instrs.len() {
             let instr = &func.instrs[i];
-            let action = self.eval_instr(instr, env);
+            let action = self.eval_instr(&instr, env);
             match action {
                 Ok(Action::Next) => {
                     i += 1;
                 }
-                Ok(Action::Jump(label)) => match Interpreter::find_label(&func, label) {
-                    Some(v) => i = v,
-                    None => {
-                        println!("Couldn't find label to jump to");
-                        return false;
-                    }
+                Ok(Action::Jump(label)) => {
+                    match Interpreter::find_label(&func, label) {
+                        Some(v) => {
+                            i = v;
+                        } 
+                        None => {
+                            println!("Couldn't find label to jump to");
+                            return false;
+                        }
+                    };
+                    if let Some(label_profile_map) = self.label_map.get_mut(&func.name) {
+                        if let Some(label_profile_data) = label_profile_map.get_mut(label) {
+                            *label_profile_data += 1;
+                        }
+                    };
                 },
                 Ok(Action::Return) => break,
                 Err(s) => {
