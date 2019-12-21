@@ -48,9 +48,9 @@ pub enum Action<'a> {
 pub struct Interpreter<'a> {
     asm: dynasmrt::x64::Assembler,
     asm_map: HashMap<i64, AsmProgram>,
-    bril_map: HashMap<i64, Function>,
-    index_map: HashMap<String, i64>,
-    label_map: HashMap<String, HashMap<String, i64>>,
+    bril_map: HashMap<i64, &'a Function>,
+    index_map: HashMap<&'a str, i64>,
+    label_map: HashMap<&'a str, HashMap<&'a str, i64>>,
     profile_map: HashMap<i64, i64>,
     program: &'a Program,
 }
@@ -58,23 +58,23 @@ pub struct Interpreter<'a> {
 impl<'a> Interpreter<'a> {
     pub fn new(bril_ir: &'a Program, jit: bool) -> Interpreter<'a> {
         let asm = dynasmrt::x64::Assembler::new().unwrap();
-        let mut index_map = HashMap::<String, i64>::new();
-        let mut bril_map = HashMap::<i64, Function>::new();
-        let mut label_map = HashMap::<String, HashMap<String, i64>>::new();
+        let mut index_map = HashMap::<&'a str, i64>::new();
+        let mut bril_map = HashMap::<i64, &'a Function>::new();
+        let mut label_map = HashMap::<&'a str, HashMap<&'a str, i64>>::new();
         let mut profile_map = HashMap::<i64, i64>::new();
         let asm_map = HashMap::<i64, AsmProgram>::new();
 
         let mut i = 0;
         for fun in &bril_ir.functions {
-            bril_map.insert(i, fun.clone());
-            index_map.insert(fun.name.clone(), i);
+            bril_map.insert(i, fun);
+            index_map.insert(&fun.name, i);
             profile_map.insert(i, 0);
-            for instr in fun.instrs.clone() {
-                let mut label_profile_map = HashMap::<String, i64>::new();
-                if let Some(label) = instr.label {
-                    label_profile_map.insert(label, 0);
+            for instr in &fun.instrs {
+                let mut label_profile_map = HashMap::<&'a str, i64>::new();
+                if let Some(label) = &instr.label {
+                    label_profile_map.insert(&label, 0);
                 }
-                label_map.insert(fun.clone().name, label_profile_map);
+                label_map.insert(&fun.name, label_profile_map);
             }
             i += 1;
         }
@@ -90,6 +90,15 @@ impl<'a> Interpreter<'a> {
         }
     }
 
+    pub fn handle_osr(&mut self, env: &mut Env<'a>, func_idx: i64) {
+        let func_bril = self.bril_map.remove(&func_idx).unwrap();
+        let func_asm = self.compile(&func_bril, Some(env));
+        let func: fn(&Interpreter, Vec<i64>) -> Option<i64> =
+            unsafe { mem::transmute(func_asm.code.ptr(func_asm.start)) };
+        self.asm_map.insert(func_idx, func_asm);
+        // let x = func(&self, args);
+    }
+
     pub fn handle_call(&mut self, func_idx: i64, args: Vec<i64>) -> Option<i64> {
         if let Some(func_asm) = self.asm_map.get(&func_idx) {
             let func: fn(&Interpreter, Vec<i64>) -> Option<i64> =
@@ -101,7 +110,7 @@ impl<'a> Interpreter<'a> {
                 self.profile_map.insert(func_idx, func_profile_data + 1);
                 if func_profile_data > 1 {
                     let func_bril = self.bril_map.remove(&func_idx).unwrap();
-                    let func_asm = self.compile(&func_bril);
+                    let func_asm = self.compile(&func_bril, None);
                     let func: fn(&Interpreter, Vec<i64>) -> Option<i64> =
                         unsafe { mem::transmute(func_asm.code.ptr(func_asm.start)) };
                     self.asm_map.insert(func_idx, func_asm);
@@ -143,10 +152,10 @@ impl<'a> Interpreter<'a> {
         None
     }
 
-    pub fn compile(&mut self, bril_func: &Function) -> AsmProgram {
-        let mut var_offsets = HashMap::<&str, i32>::new();
-        let mut var_types = HashMap::<&str, String>::new();
-        let mut labels = HashMap::<String, dynasmrt::DynamicLabel>::new();
+    pub fn compile(&mut self, bril_func: &'a Function, env: Option<&mut Env<'a>>) -> AsmProgram {
+        let mut var_offsets = HashMap::<&'a str, i32>::new();
+        let mut var_types = HashMap::<&'a str, String>::new();
+        let mut labels = HashMap::<&'a str, dynasmrt::DynamicLabel>::new();
         let mut num_vars = 2;
 
         if let Some(args) = &bril_func.args {
@@ -196,6 +205,17 @@ impl<'a> Interpreter<'a> {
                 ; mov [rbp - 8*(i + 2)], rax
             );
         }
+
+        if let Some(interp_env) = env {
+            for (k, v) in var_offsets.iter() {
+                if let Some(var) = interp_env.get(&k) {
+                    dynasm!(self.asm
+                        ; mov rax, QWORD var
+                        ; mov [rbp - v], rax
+                    );
+                }
+            }
+        };
 
         for inst in &bril_func.instrs {
             match &inst.op {
@@ -316,7 +336,7 @@ impl<'a> Interpreter<'a> {
                         dynasm!(self.asm
                             ; mov rax, QWORD Interpreter::handle_call as _
                             ; mov rdi, [rbp - 8]
-                            ; mov rsi, QWORD *self.index_map.get(name).unwrap()
+                            ; mov rsi, QWORD *self.index_map.get::<str>(name).unwrap()
                             ; mov rdx, rsp
                             ; call rax
                         );
@@ -459,7 +479,7 @@ impl<'a> Interpreter<'a> {
         let mut i = 0;
         while i < func.instrs.len() {
             let instr = &func.instrs[i];
-            let action = self.eval_instr(instr, env);
+            let action = self.eval_instr(&instr, &func, env);
             match action {
                 Ok(Action::Next) => {
                     i += 1;
@@ -472,13 +492,6 @@ impl<'a> Interpreter<'a> {
                         None => {
                             println!("Couldn't find label to jump to");
                             return false;
-                        }
-                    };
-                    if let Some(label_profile_map) = self.label_map.get_mut(&func.name) {
-                        if let Some(label_profile_data) =
-                            label_profile_map.get_mut(&label.to_string())
-                        {
-                            *label_profile_data += 1;
                         }
                     };
                 }
@@ -495,8 +508,22 @@ impl<'a> Interpreter<'a> {
     pub fn eval_instr(
         &mut self,
         instr: &'a Instruction,
+        func: &'a Function,
         env: &mut Env<'a>,
     ) -> Result<Action, &str> {
+        if let Some(label) = &instr.label {
+            if let Some(label_profile_map) = self.label_map.get_mut::<str>(&func.name) {
+                if let Some(label_profile_data) = label_profile_map.get_mut::<str>(label) {
+                    *label_profile_data += 1;
+                };
+                if let Some(label_profile_data) = label_profile_map.get::<str>(label) {
+                    if *label_profile_data > 1 {
+                        let func_idx = self.index_map.get::<str>(label).unwrap();
+                        self.handle_osr(env, *func_idx);
+                    }
+                }
+            };
+        };
         match instr.op.as_ref().unwrap_or(&Op::Nop) {
             Op::Const => {
                 env.put(
@@ -594,12 +621,12 @@ impl<'a> Interpreter<'a> {
             Op::Call => {
                 let instr_args = &(instr.args).as_ref().unwrap();
                 let name = &instr_args[0];
-                let func_idx = self.index_map.get(name).unwrap().clone();
+                let func_idx = self.index_map.get::<str>(name).unwrap();
                 let mut args = Vec::new();
                 for arg in &instr_args[1..] {
                     args.push(env.get(&arg).unwrap());
                 }
-                let result = self.handle_call(func_idx, args);
+                let result = self.handle_call(*func_idx, args);
                 match &instr.dest {
                     Some(var) => env.put(&var, result.unwrap()),
                     None => (),
@@ -633,16 +660,16 @@ fn print_newline() {
     println!()
 }
 
-fn get_dyn_label(
+fn get_dyn_label<'a>(
     asm: &mut dynasmrt::x64::Assembler,
-    labels: &mut HashMap<String, dynasmrt::DynamicLabel>,
-    label: &str,
+    labels: &mut HashMap<&'a str, dynasmrt::DynamicLabel>,
+    label: &'a str,
 ) -> dynasmrt::DynamicLabel {
     if let Some(&dyn_label) = labels.get(label) {
         return dyn_label;
     } else {
         let dyn_label = asm.new_dynamic_label();
-        labels.insert(label.to_string(), dyn_label);
+        labels.insert(label, dyn_label);
         return dyn_label;
     }
 }
