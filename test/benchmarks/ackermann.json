@@ -1,0 +1,195 @@
+{
+  "functions": [
+    {
+      "instrs": [
+        {
+          "dest": "m",
+          "op": "const",
+          "type": "int",
+          "value": 2
+        },
+        {
+          "dest": "n",
+          "op": "const",
+          "type": "int",
+          "value": 3
+        },
+        {
+          "args": [
+            "ack",
+            "m",
+            "n"
+          ],
+          "dest": "a",
+          "op": "call",
+          "type": "int"
+        },
+        {
+          "args": [
+            "a"
+          ],
+          "op": "print"
+        }
+      ],
+      "name": "main"
+    },
+    {
+      "args": [
+        {
+          "name": "m",
+          "type": "int"
+        },
+        {
+          "name": "n",
+          "type": "int"
+        }
+      ],
+      "instrs": [
+        {
+          "dest": "zero",
+          "op": "const",
+          "type": "int",
+          "value": 0
+        },
+        {
+          "dest": "one",
+          "op": "const",
+          "type": "int",
+          "value": 1
+        },
+        {
+          "args": [
+            "m",
+            "zero"
+          ],
+          "dest": "equals_m",
+          "op": "le",
+          "type": "bool"
+        },
+        {
+          "args": [
+            "equals_m",
+            "case_one",
+            "second_condition"
+          ],
+          "op": "br"
+        },
+        {
+          "label": "case_one"
+        },
+        {
+          "args": [
+            "n",
+            "one"
+          ],
+          "dest": "vaal",
+          "op": "add",
+          "type": "int"
+        },
+        {
+          "args": [
+            "vaal"
+          ],
+          "op": "ret"
+        },
+        {
+          "label": "case_two"
+        },
+        {
+          "args": [
+            "m",
+            "one"
+          ],
+          "dest": "m_minus_one",
+          "op": "sub",
+          "type": "int"
+        },
+        {
+          "args": [
+            "ack",
+            "m_minus_one",
+            "one"
+          ],
+          "dest": "vaaal",
+          "op": "call",
+          "type": "int"
+        },
+        {
+          "args": [
+            "vaaal"
+          ],
+          "op": "ret"
+        },
+        {
+          "label": "second_condition"
+        },
+        {
+          "args": [
+            "n",
+            "zero"
+          ],
+          "dest": "b_one",
+          "op": "le",
+          "type": "bool"
+        },
+        {
+          "args": [
+            "b_one",
+            "case_two",
+            "case_three"
+          ],
+          "op": "br"
+        },
+        {
+          "label": "case_three"
+        },
+        {
+          "args": [
+            "m",
+            "one"
+          ],
+          "dest": "first",
+          "op": "sub",
+          "type": "int"
+        },
+        {
+          "args": [
+            "n",
+            "one"
+          ],
+          "dest": "n_minus_one",
+          "op": "sub",
+          "type": "int"
+        },
+        {
+          "args": [
+            "ack",
+            "m",
+            "n_minus_one"
+          ],
+          "dest": "second",
+          "op": "call",
+          "type": "int"
+        },
+        {
+          "args": [
+            "ack",
+            "first",
+            "second"
+          ],
+          "dest": "vall",
+          "op": "call",
+          "type": "int"
+        },
+        {
+          "args": [
+            "vall"
+          ],
+          "op": "ret"
+        }
+      ],
+      "name": "ack",
+      "type": "int"
+    }
+  ]
+}

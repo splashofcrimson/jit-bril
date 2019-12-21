@@ -1,0 +1,35 @@
+main {
+  m: int = const 2;
+  n: int = const 3;
+  a: int = call ack m n;
+  print a;
+}
+
+ack (m: int) (n: int) : int {
+
+zero: int = const 0;
+one: int = const 1;
+equals_m: bool = le m zero;
+br equals_m case_one second_condition;
+
+case_one:
+  vaal: int = add n one;
+  ret vaal;
+  
+case_two:
+  m_minus_one: int = sub m one;
+  vaaal: int = call ack m_minus_one one;
+  ret vaaal;
+
+second_condition:
+  b_one: bool = le n zero;
+  br b_one case_two case_three;
+
+case_three:
+  first: int = sub m one;
+  n_minus_one: int = sub n one;
+  second: int = call ack m n_minus_one;  
+  vall: int = call ack first second;
+  ret vall;
+}
+
