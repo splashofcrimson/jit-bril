@@ -53,10 +53,14 @@ pub struct Interpreter<'a> {
     label_map: HashMap<&'a str, HashMap<&'a str, i64>>,
     profile_map: HashMap<i64, i64>,
     program: &'a Program,
+    jit: bool,
+    jit_n: i64,
+    osr: bool,
+    osr_n: i64,
 }
 
 impl<'a> Interpreter<'a> {
-    pub fn new(bril_ir: &'a Program, jit: bool) -> Interpreter<'a> {
+    pub fn new(bril_ir: &'a Program, jit: bool, jit_n: i64, osr: bool, osr_n: i64) -> Interpreter<'a> {
         let asm = dynasmrt::x64::Assembler::new().unwrap();
         let mut index_map = HashMap::<&'a str, i64>::new();
         let mut bril_map = HashMap::<i64, &'a Function>::new();
@@ -87,6 +91,10 @@ impl<'a> Interpreter<'a> {
             label_map: label_map,
             profile_map: profile_map,
             program: bril_ir,
+            jit: jit,
+            jit_n: jit_n,
+            osr: osr,
+            osr_n: osr_n,
         }
     }
 
@@ -107,7 +115,7 @@ impl<'a> Interpreter<'a> {
         } else {
             if let Some(&func_profile_data) = &self.profile_map.get(&func_idx) {
                 self.profile_map.insert(func_idx, func_profile_data + 1);
-                if true {
+                if self.jit && func_profile_data >= self.jit_n {
                     let func_bril = self.bril_map.remove(&func_idx).unwrap();
                     let (func_asm, start) = self.compile(&func_bril, None, None);
                     let func: fn(&Interpreter, Vec<i64>) -> Option<i64> =
@@ -541,7 +549,7 @@ impl<'a> Interpreter<'a> {
                     *label_profile_data += 1;
                 };
                 if let Some(label_profile_data) = label_profile_map.get::<str>(label) {
-                    if *label_profile_data >= 1 {
+                    if self.osr && *label_profile_data >= self.osr_n {
                         let func_idx = self.index_map.get::<str>(&func.name).unwrap();
                         let return_val = self.handle_osr(env, *func_idx, label);
                         if let Some(val) = return_val {
